@@ -9,6 +9,7 @@ import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
 import "./stdlib";
+import {SumAggregate} from "./stdlib";
 import {v4 as uuid} from "node-uuid";
 import * as falafel from "falafel";
 
@@ -71,8 +72,8 @@ function macro<FuncType extends Function>(func:FuncType, transform:(code:string,
 // Reference
 //--------------------------------------------------------------------
 
-type Value = Reference|RawValue;
-type ProxyReference = any;
+export type Value = Reference|RawValue;
+export type ProxyReference = any;
 
 function isRawValue(v:any): v is RawValue {
   return (typeof v === "string" || typeof v === "number");
@@ -82,7 +83,7 @@ function isReference(v:any): v is Reference {
   return (v instanceof Reference);
 }
 
-type Owner = any;
+export type Owner = any;
 
 export class Reference {
   static ReferenceID = 0;
@@ -96,16 +97,22 @@ export class Reference {
   }
 
   __ID = Reference.ReferenceID++;
+  __forceRegister = false;
 
   constructor(public __context:ReferenceContext, public __owner?:Owner) {
     let proxied = this.__proxy();
     __context.register(proxied);
+    this.__owner = __owner || null;
     return proxied;
   }
 
   add(attrMap:{[attr:string]:Value|Value[]}):Reference;
   add(attribute:Value, value:Value|Value[]):Reference;
   add(attrMapOrAttr:Value|{[attr:string]:Value|Value[]}, value?:Value|Value[]):Reference {
+    if(!this.__owner) {
+      this.__owner = new Record(this.__context, [], {}, this);
+    }
+
     if(this.__owner instanceof Record) {
       // we only allow you to call add at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
@@ -127,11 +134,15 @@ export class Reference {
   }
 
   // @TODO: allow free A's and V's here
-  remove(attribute:Value, value:Value|Value[]):Reference {
+  remove(attribute?:Value, value?:Value|Value[]):Reference {
+    if(!this.__owner) {
+      this.__owner = new Record(this.__context, [], {}, this);
+    }
+
     if(this.__owner instanceof Record) {
       // we only allow you to call remove at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
-      this.__owner.remove(this.__context, attribute, value);
+      this.__owner.remove(this.__context, attribute as any, value as any);
       return this;
     } else {
       throw new Error("Can't call add on a non-record");
@@ -152,7 +163,7 @@ export class Reference {
         }
 
         if(!this.__owner) {
-          throw new Error("Cannot access a property of a static value");
+          this.__owner = new Record(active, [], {}, this);
         }
 
         return this.__owner.access(this.__context, active, prop);
@@ -185,6 +196,7 @@ export class ReferenceContext {
   flow: LinearFlow;
   references:Reference[] = [];
   equalities:Value[][] = [];
+  forcedMoves:Value[][] = [];
   referenceValues: (Register|RawValue)[] = [];
   totalRegisters = 0;
   maxRegisters = 0;
@@ -272,6 +284,7 @@ export class ReferenceContext {
   unify() {
     let {equalities} = this;
     let values:(Register | RawValue)[] = this.referenceValues;
+    let forcedMoves = [];
     let changed = equalities.length > 0;
 
     let round = 0;
@@ -289,7 +302,9 @@ export class ReferenceContext {
         let neueA = aValue;
         let neueB = bValue;
 
-        if(isReference(a) && isReference(b)) {
+        if((a as Reference).__forceRegister || (b as Reference).__forceRegister) {
+          forcedMoves.push([a,b]);
+        } else if(isReference(a) && isReference(b)) {
           if(this.selectReference(a, b) === b) {
             neueA = bValue;
           } else {
@@ -317,10 +332,16 @@ export class ReferenceContext {
       throw new Error("Unable to unify variables. This is almost certainly an implementation error.");
     }
     this.assignRegisters()
+    this.forcedMoves = forcedMoves;
   }
 
   getMoves() {
     let moves = [];
+    for(let [a,b] of this.forcedMoves) {
+      let to = isReference(a) ? a : b;
+      let from = to === a ? b : a;
+      moves.push(new Move(this, from, to as Reference));
+    }
     for(let ref of this.references) {
       if(ref === undefined || this.owns(ref)) continue;
       let local = this.getValue(ref);
@@ -374,12 +395,12 @@ export class ReferenceContext {
 // Linear Flow
 //--------------------------------------------------------------------
 
-type Node = Record | Insert | Fn | Not | Choose | Union | Aggregate | Lookup | Move;
+export type Node = Record | Insert | Fn | Not | Choose | Union | Aggregate | Lookup | Move;
 export type LinearFlowFunction = (self:LinearFlow) => (Value|Value[])
-type RecordAttributes = {[key:string]:Value|Value[]}
-type FlowRecordArg = string | RecordAttributes
+export type RecordAttributes = {[key:string]:Value|Value[]}
+export type FlowRecordArg = string | RecordAttributes
 
-class FlowLevel {
+export class FlowLevel {
   records:Record[] = [];
   lookups:Lookup[] = [];
   functions:Fn[] = [];
@@ -637,12 +658,12 @@ class FlowLevel {
   }
 }
 
-class DSLBase {
+export class DSLBase {
   static CurrentID = 1;
   ID = DSLBase.CurrentID++;
 }
 
-class LinearFlow extends DSLBase {
+export class LinearFlow extends DSLBase {
   context:ReferenceContext;
   collector:FlowLevel = new FlowLevel();
   levels:FlowLevel[] = [];
@@ -833,14 +854,15 @@ class LinearFlow extends DSLBase {
   }
 
   transformCode = (code:string, functionArgs:string[]):string => {
-    var output = falafel(`function f() { ${code} }`, function (node:any) {
+    if(!functionArgs[0]) throw new Error(`Trying to create a block that has no args with code:\n\n\`\`\`\n${code}\n\`\`\``);
+    var output = falafel(`function f() { var $___eve_block$ = ${functionArgs[0]}; ${code} }`, function (node:any) {
       if (node.type === 'BinaryExpression') {
         let func = operators[node.operator] as string;
         if(node.operator === "+" && (isASTString(node.left) || isASTString(node.right))) {
           func = operators["concat"];
         }
         if(func) {
-          node.update(`${functionArgs[0]}.lib.${func}(${node.left.source()}, ${node.right.source()})`)
+          node.update(`$___eve_block$.lib.${func}(${node.left.source()}, ${node.right.source()})`)
         }
       }
     });
@@ -855,7 +877,7 @@ class LinearFlow extends DSLBase {
 // WatchFlow
 //--------------------------------------------------------------------
 
-class WatchFlow extends LinearFlow {
+export class WatchFlow extends LinearFlow {
   collect(node:Node) {
     if(!(node instanceof Watch) && node instanceof Insert) {
       node = node.toWatch();
@@ -869,7 +891,7 @@ class WatchFlow extends LinearFlow {
 // CommitFlow
 //--------------------------------------------------------------------
 
-class CommitFlow extends LinearFlow {
+export class CommitFlow extends LinearFlow {
   collect(node:Node) {
     if(!(node instanceof CommitInsert) && !(node instanceof CommitRemove) && node instanceof Insert) {
       node = node.toCommit();
@@ -887,7 +909,7 @@ class CommitFlow extends LinearFlow {
 // Record
 //--------------------------------------------------------------------
 
-class Record extends DSLBase {
+export class Record extends DSLBase {
   attributes:Value[];
   constructor(public context:ReferenceContext, tags:string[] = [], attributes:RecordAttributes = {}, public record?:Reference) {
     super();
@@ -1011,7 +1033,7 @@ class Record extends DSLBase {
 // Lookup
 //--------------------------------------------------------------------
 
-class Lookup extends DSLBase {
+export class Lookup extends DSLBase {
   attribute:Reference;
   value:Reference;
 
@@ -1044,10 +1066,13 @@ class Lookup extends DSLBase {
 // Move
 //--------------------------------------------------------------------
 
-class Move extends DSLBase {
+export class Move extends DSLBase {
   public to:Reference;
   constructor(public context:ReferenceContext, public from:Value, to?:Reference) {
     super();
+    if(isReference(from)) {
+      context.register(from);
+    }
     if(!to) {
       if(!isReference(from)) throw new Error("Move where the to is not a reference");
       this.to = from;
@@ -1082,7 +1107,7 @@ class Move extends DSLBase {
 // Insert
 //--------------------------------------------------------------------
 
-class Insert extends Record {
+export class Insert extends Record {
 
   constructor(public context:ReferenceContext, tags:string[] = [], attributes:RecordAttributes = {}, record?:Reference) {
     super(context, tags, attributes, record);
@@ -1162,7 +1187,7 @@ class Insert extends Record {
 // Remove
 //--------------------------------------------------------------------
 
-class Remove extends Insert {
+export class Remove extends Insert {
   toCommit() {
     let commit = new CommitRemove(this.context, [], {}, this.record);
     commit.attributes = this.attributes;
@@ -1181,7 +1206,9 @@ class Remove extends Insert {
       let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
-      nodes.push(new Runtime.RemoveNode(e, context.interned(a), internedV, context.interned(n)));
+      let internedA:any = context.maybeInterned(a); // @FIXME
+      internedA = internedA !== undefined ? internedA : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.RemoveNode(e, internedA, internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1192,7 +1219,7 @@ class Remove extends Insert {
 // Watch
 //--------------------------------------------------------------------
 
-class Watch extends Insert {
+export class Watch extends Insert {
   compile():(Runtime.Node|Runtime.Scan)[] {
     let {attributes, context} = this;
     let nodes = [];
@@ -1212,7 +1239,7 @@ class Watch extends Insert {
 // CommitInsert
 //--------------------------------------------------------------------
 
-class CommitInsert extends Insert {
+export class CommitInsert extends Insert {
   compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
@@ -1232,7 +1259,7 @@ class CommitInsert extends Insert {
 // CommitRemove
 //--------------------------------------------------------------------
 
-class CommitRemove extends Remove {
+export class CommitRemove extends Remove {
   compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
@@ -1244,7 +1271,9 @@ class CommitRemove extends Remove {
       let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
-      nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), internedV, context.interned(n)));
+      let internedA:any = context.maybeInterned(a); // @FIXME
+      internedA = internedA !== undefined ? internedA : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.CommitRemoveNode(e, internedA, internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1254,7 +1283,7 @@ class CommitRemove extends Remove {
 // Fn
 //--------------------------------------------------------------------
 
-class Fn extends DSLBase {
+export class Fn extends DSLBase {
   output:Value;
   constructor(public context:ReferenceContext, public name:string, public args:Value[], output?:Reference) {
     super();
@@ -1265,6 +1294,11 @@ class Fn extends DSLBase {
       this.output = args[args.length - 1];
     } else {
       this.output = Reference.create(context, this);
+    }
+    for(let arg of args) {
+      if(isReference(arg)) {
+        context.register(arg);
+      }
     }
     context.flow.collect(this);
   }
@@ -1320,7 +1354,7 @@ class Fn extends DSLBase {
 // Aggregate
 //--------------------------------------------------------------------
 
-class Aggregate extends DSLBase {
+export class Aggregate extends DSLBase {
   output: Reference;
 
   constructor(public context:ReferenceContext, public aggregate:any, public projection:Reference[], public group:Reference[], public args:Value[], output?:Reference) {
@@ -1330,6 +1364,7 @@ class Aggregate extends DSLBase {
     } else {
       this.output = Reference.create(context, this);
     }
+    this.output.__forceRegister = true;
 
     // add all of our args to our projection
     for(let arg of args) {
@@ -1343,9 +1378,11 @@ class Aggregate extends DSLBase {
   getInputRegisters():Register[] {
     let {context} = this;
     let items = concatArray([], this.args);
-    concatArray(items, this.projection);
+    if(this.aggregate === Runtime.SortNode) {
+      concatArray(items, this.projection);
+    }
     concatArray(items, this.group);
-    return this.args.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+    return items.map((v) => context.getValue(v)).filter(isRegister) as Register[];
   }
 
   getOutputRegisters():Register[] {
@@ -1374,7 +1411,7 @@ class Aggregate extends DSLBase {
   }
 }
 
-class AggregateBuilder {
+export class AggregateBuilder {
 
   group:Reference[] = [];
 
@@ -1385,6 +1422,7 @@ class AggregateBuilder {
     for(let arg of args) {
       this.group.push(arg);
     }
+    return this;
   }
 
   checkBlock() {
@@ -1392,15 +1430,21 @@ class AggregateBuilder {
     if(active !== this.context) throw new Error("Cannot gather in one scope and aggregate in another");
   }
 
-  sum(value:Reference) {
+  sum(value:Reference):any {
     this.checkBlock();
-    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [value]);
+    let agg = new Aggregate(this.context, SumAggregate, this.projection, this.group, [value]);
     return agg.reference();
   }
 
-  count() {
+  count():any {
     this.checkBlock();
-    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [1]);
+    let agg = new Aggregate(this.context, SumAggregate, this.projection, this.group, [1]);
+    return agg.reference();
+  }
+
+  sort(...directions:Value[]):any {
+    this.checkBlock();
+    let agg = new Aggregate(this.context, Runtime.SortNode, this.projection, this.group, directions);
     return agg.reference();
   }
 
@@ -1410,7 +1454,7 @@ class AggregateBuilder {
 // Not
 //--------------------------------------------------------------------
 
-class Not extends LinearFlow {
+export class Not extends LinearFlow {
   constructor(func:LinearFlowFunction, parent:LinearFlow) {
     super(func, parent);
     parent.collect(this);
@@ -1421,7 +1465,7 @@ class Not extends LinearFlow {
 // Union
 //--------------------------------------------------------------------
 
-class Union extends DSLBase {
+export class Union extends DSLBase {
   branches:LinearFlow[] = [];
   results:Reference[] = [];
   inputs:Reference[] = [];
@@ -1438,7 +1482,9 @@ class Union extends DSLBase {
       if(resultCount === undefined) {
         resultCount = branchResultCount;
         for(let resultIx = 0; resultIx < resultCount; resultIx++) {
-          results.push(Reference.create(context));
+          let ref = Reference.create(context);
+          ref.__forceRegister = true;
+          results.push(ref);
         }
       } else if(resultCount !== branchResultCount) {
         throw new Error(`Choose branch ${ix} doesn't have the right number of returns. I expected ${resultCount}, but got ${branchResultCount}`);
@@ -1481,8 +1527,8 @@ class Union extends DSLBase {
     return 0;
   }
 
-  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
-    return new Runtime.UnionFlow(left, nodes, inputs, outputs);
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[], extraOuterJoins:Register[]):Runtime.Node {
+    return new Runtime.UnionFlow(left, nodes, inputs, outputs, extraOuterJoins);
   }
 
   compile(join:Runtime.Node) {
@@ -1492,13 +1538,37 @@ class Union extends DSLBase {
     let outputs = this.getOutputRegisters();
     let ix = 0;
     for(let flow of this.branches) {
+      if(flow.collector.chooses.length > 0 || flow.collector.unions.length > 0) {
+        throw new Error("Nested chooses and unions are not currently supported");
+      }
       let compiled = flow.compile();
-      nodes.push(compiled[0]);
       // @NOTE: Not sure why TS isn't correctly pegging this as filtered to only Registers already.
-      inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[]);
+      let flowInputs = branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[];
+      if(compiled.length > 1) {
+        // if this branch has an aggregate in it, we need to do some surgery to make sure that
+        // the JoinNode gets wrapped in an AggregateOuterLookup. For the motivation see the
+        // comment about the definition for AggregateOuterLookup.
+        if(flow.collector.aggregates.length > 0) {
+          let aggMerge = compiled[0] as Runtime.MergeAggregateFlow;
+          aggMerge.left = new Runtime.AggregateOuterLookup(join, aggMerge.left, flowInputs)
+        }
+        nodes.push(new Runtime.LinearFlow(compiled));
+      } else {
+        nodes.push(compiled[0]);
+      }
+      inputs.push(flowInputs);
       ix++;
     }
-    return this.build(join, nodes, inputs, this.getOutputRegisters());
+    let extraJoins:Register[] = [];
+    for(let result of this.results) {
+      if(result.__owner && result.__owner instanceof Record && result.__owner.attributes.length) {
+        let maybeReg = context.getValue(result);
+        if(isRegister(maybeReg)) {
+          extraJoins.push(maybeReg);
+        }
+      }
+    }
+    return this.build(join, nodes, inputs, this.getOutputRegisters(), extraJoins);
   }
 }
 
@@ -1506,9 +1576,9 @@ class Union extends DSLBase {
 // Choose
 //--------------------------------------------------------------------
 
-class Choose extends Union {
-  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
-    return new Runtime.ChooseFlow(left, nodes, inputs, outputs);
+export class Choose extends Union {
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[], extraOuterJoins:Register[]):Runtime.Node {
+    return new Runtime.ChooseFlow(left, nodes, inputs, outputs, extraOuterJoins);
   }
 }
 
@@ -1539,7 +1609,6 @@ export class Program {
     this.context = new Runtime.EvaluationContext(this.index);
   }
 
-
   constants(obj:{[key:string]: RawValue}) {
     if(!this._constants) this._constants = {};
     for(let constant in obj) {
@@ -1568,15 +1637,32 @@ export class Program {
     this.context = new Runtime.EvaluationContext(this.index);
   }
 
-  block(name:string, func:LinearFlowFunction) {
-    let flow = new LinearFlow(this.injectConstants(func));
+  _block(name:string, flow:LinearFlow) {
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
     this.blocks.push(block);
+    return block;
+  }
+
+  block(name:string, func:LinearFlowFunction) {
+    let flow = new LinearFlow(this.injectConstants(func));
+    this._block(name, flow);
     return this;
   }
 
+  blockChangeTransaction(added:Runtime.Block[], removed:Runtime.Block[]) {
+    for(let remove of removed) {
+      let ix = this.blocks.indexOf(remove)
+      this.blocks.splice(ix, 1);
+    }
+    // console.time("input");
+    let trans = new Runtime.BlockChangeTransaction(this.context, this.nextTransactionId++, added, removed, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    trans.exec(this.context);
+    // console.timeEnd("input");
+    // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    return trans;
+  }
 
   input(changes:Runtime.Change[]) {
     // console.time("input");
@@ -1588,6 +1674,22 @@ export class Program {
     trans.exec(this.context);
     // console.timeEnd("input");
     // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+
+    // let g:any = global;
+    // let filterPrefix = "eve/compiler/";
+    // let filteredIds = g.filteredIds = g.filteredIds || [];
+    // for(let change of trans.changes) {
+    //   if(change.a == GlobalInterner.get("tag") && (""+GlobalInterner.reverse(change.v)).indexOf(filterPrefix) == 0) {
+    //     filteredIds.push(change.e);
+    //   }
+    // }
+
+    // let filtered = trans.changes.filter((c) => filteredIds.indexOf(c.e) !== -1);
+    // if(filtered.length) {
+    //   console.log("---------------INPUT-----------")
+    //   console.log(filtered.map((change, ix) => `    <- ${change}`).join("\n"));
+    // }
+
     return trans;
   }
 
@@ -1614,12 +1716,17 @@ export class Program {
     return this;
   }
 
-  commit(name:string, func:LinearFlowFunction) {
-    let flow = new CommitFlow(this.injectConstants(func));
+  _commit(name:string, flow:LinearFlow) {
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
     this.blocks.push(block);
+    return block;
+  }
+
+  commit(name:string, func:LinearFlowFunction) {
+    let flow = new CommitFlow(this.injectConstants(func));
+    this._commit(name, flow);
     return this;
   }
 
@@ -1632,13 +1739,18 @@ export class Program {
     return watcher;
   }
 
-  watch(name:string, func:LinearFlowFunction) {
-    let flow = new WatchFlow(this.injectConstants(func));
+  _watch(name:string, flow:WatchFlow) {
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.lastWatch = flow.ID;
     this.flows.push(flow);
     this.blocks.push(block);
+    return block;
+  }
+
+  watch(name:string, func:LinearFlowFunction) {
+    let flow = new WatchFlow(this.injectConstants(func));
+    this._watch(name, flow);
     return this;
   }
 

@@ -1,7 +1,9 @@
 import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
 import {v4 as uuid} from "node-uuid";
 
-interface Map<V>{[key:string]: V}
+import naturalSort = require("javascript-natural-sort");
+
+export interface Map<V>{[key:string]: V}
 
 export interface Style extends Map<RawValue|undefined> {__size: number}
 export interface ElemInstance extends Element {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, style?: any}
@@ -10,6 +12,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   styles:Map<Style|undefined> = Object.create(null);
   roots:Map<Instance|undefined> = Object.create(null);
   instances:Map<Instance|undefined> = Object.create(null);
+  elementToInstances:Map<RawValue[]|undefined> = Object.create(null);
   styleToInstances:Map<RawValue[]|undefined> = Object.create(null);
 
   abstract tagPrefix:string;
@@ -32,6 +35,13 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     return instance && !!instance["__element"];
   }
 
+  addInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance|undefined {
+    let instance = this.instances[id] = this.createInstance(id, element, tagname);
+    if(!this.elementToInstances[element]) this.elementToInstances[element] = [];
+    this.elementToInstances[element]!.push(id);
+    return instance;
+  }
+
   getInstance(id:RawValue, tagname:RawValue = "div"):Instance|undefined {
     if(this.roots[id]) return this.roots[id]!;
     return this.instances[id];
@@ -43,6 +53,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       instance.parentElement.removeChild(instance);
     }
     this.instances[id] = undefined;
+
+    let instances = instance && this.elementToInstances[instance.__element!];
+    if(instances) instances.splice(instances.indexOf(id), 1);
   }
 
   getRoot(id:RawValue, tagname:RawValue = "div"):Instance|undefined {
@@ -55,14 +68,16 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   }
 
   insertChild(parent:Element|null, child:Instance, at = child.__sort) {
-    child.__sort = at;
+    at = at !== undefined ? ""+at: at;
+    child.__sort = at
+    if(at !== undefined) child.setAttribute("sort", ""+at);
     if(!parent) return;
 
     let current;
     for(let curIx = 0; curIx < parent.childNodes.length; curIx++) {
       let cur = parent.childNodes[curIx] as Instance;
       if(cur === child) continue;
-      if(cur.__sort !== undefined && at !== undefined && cur.__sort > at) {
+      if(cur.__sort !== undefined && at !== undefined && naturalSort(cur.__sort, at) > 0) {
         current = cur;
         break;
       }
@@ -81,8 +96,8 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   setStyleAttribute(styleId:RawValue, attribute:RawValue, value:RawValue, count:-1|1) {
     let style = this.getStyle(styleId);
     if(count === -1) {
-      if(!style[attribute]) throw new Error(`Cannot remove non-existent attribute '${attribute}'`);
-      if(style[attribute] !== value) throw new Error(`Cannot remove mismatched AV ${attribute}: ${value} (current: ${style[attribute]})`);
+      //if(!style[attribute]) throw new Error(`Cannot remove non-existent attribute '${attribute}'`);
+      //if(style[attribute] !== value) throw new Error(`Cannot remove mismatched AV ${attribute}: ${value} (current: ${style[attribute]})`);
       style[attribute] = undefined;
     } else {
       if(style[attribute]) throw new Error(`Cannot add already present attribute '${attribute}'`);
@@ -142,9 +157,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       .constants({tagPrefix: this.tagPrefix})
       .commit("Remove click events!", ({find}) => {
         let click = find("{{tagPrefix}}/event/click");
-        return [
-          click.remove("tag"),
-        ];
+        return [click.remove()];
       })
       .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
         let elem = find("{{tagPrefix}}/element");
@@ -175,11 +188,12 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         for(let e of Object.keys(diff.removes)) {
           let {instance:instanceId} = diff.removes[e];
           this.clearInstance(instanceId);
+
         }
 
         for(let e of Object.keys(diff.adds)) {
           let {instance:instanceId, tagname, element} = diff.adds[e];
-          this.instances[instanceId] = this.createInstance(instanceId, element, tagname);
+          this.addInstance(instanceId, element, tagname);
         }
       })
 
@@ -274,7 +288,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if(a === "class") instance.classList.remove(""+v);
           else if(a === "text") instance.textContent = null;
           else if(a === "style") this.removeStyleInstance(v, e);
-          else instance.removeAttribute(""+a);
+          else this.removeAttribute(instance, a, v);
         }
 
         for(let [e, a, v] of diff.adds) {
@@ -288,7 +302,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
           else if(a === "style") this.addStyleInstance(v, e);
-          else instance.setAttribute(""+a, ""+v);
+          else this.addAttribute(instance, a, v);
         }
       });
   }

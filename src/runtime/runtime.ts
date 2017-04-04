@@ -20,10 +20,16 @@ if(DEBUG) {
   }
 }
 
+function indent(text:string, level:number) {
+  let padding = new Array(level + 1).join(" ");
+  return text.split("\n").join("\n" + padding);
+}
+
 export function printField(field:ScanField) {
   if(isRegister(field)) return "[" + field.offset + "]";
   if(field === undefined || field === null) return field;
-  return GlobalInterner.reverse(field);
+  let raw = maybeReverse(field);
+  return typeof raw === "string" ? `"${raw}"` : raw;
 }
 
 export function printPrefix(prefix:Prefix) {
@@ -31,11 +37,13 @@ export function printPrefix(prefix:Prefix) {
 }
 
 export function printScan(constraint:Scan) {
-  return `Scan: ${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)}`;
+  return `Scan(${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)})`;
 }
 
 export function printFunction(constraint:FunctionConstraint) {
-  return `Function ${constraint.name} ${constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]))}`;
+  let params = constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]));
+  let restParams = constraint.restFields.map(printField).join(", ");
+  return `FunctionConstraint("${constraint.name}", ${params} ${restParams ? `, [${restParams}]` : ""})`;
 }
 
 export function printConstraint(constraint:Constraint) {
@@ -43,8 +51,63 @@ export function printConstraint(constraint:Constraint) {
     return printScan(constraint);
   } else if(constraint instanceof FunctionConstraint) {
     return printFunction(constraint);
+  } else if(constraint instanceof MoveConstraint) {
+    return `Move(${printField(constraint.from)}, ${printField(constraint.to)})`;
+  } else {
+    return "Unknown constraint type";
   }
 }
+(global as any).printConstraint = printConstraint;
+
+function printJoinNode(node:JoinNode) {
+  return "JoinNode([\n  " + node.constraints.map(printConstraint).join("\n  ") + "\n])";
+}
+
+export function printOutputNode(node:OutputNode) {
+  let type;
+  if(node instanceof CommitRemoveNode) type = "CommitRemove";
+  else if(node instanceof CommitInsertNode) type = "Commit";
+  else if(node instanceof RemoveNode) type = "Remove";
+  else if(node instanceof InsertNode) type = "Insert";
+  else return node;
+  return `${type}: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
+}
+
+export function printWatchNode(node:WatchNode) {
+  return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
+}
+
+export function printFlow(flow:ChooseFlow|UnionFlow):string {
+  let name;
+  if(flow instanceof ChooseFlow) name = "ChooseFlow";
+  if(flow instanceof UnionFlow) name = "UnionFlow";
+  let branchText = (flow.branches as Node[]).map((branch) => indent(printNode(branch), 4)).join(",\n    ");
+  return `${name}({
+  left: ${indent(printNode(flow.left), 2)},
+  branches: [\n    ${branchText}\n)}]
+})`;
+}
+
+export function printNode(node:Node):string {
+  if(node instanceof JoinNode) {
+    return printJoinNode(node);
+  } else if(node instanceof WatchNode) {
+    return printWatchNode(node);
+  } else if(node instanceof OutputWrapperNode) {
+    return "OutputWrapperNode([\n  " + node.nodes.map(printOutputNode).join("\n  ") + "\n])";
+  } else if(node instanceof ChooseFlow) {
+    return printFlow(node);
+  } else if(node instanceof UnionFlow) {
+    return printFlow(node);
+  } else if(node instanceof BinaryJoinRight) {
+    return `BinaryJoinRight(${printNode(node.right)})`;
+  } else if(node instanceof AntiJoinPresolvedRight) {
+    return `AntiJoinPresolvedRight(${printNode(node.left)})`;
+  } else {
+    return "Unknown node type";
+  }
+}
+(global as any).printNode = printNode;
 
 export function maybeReverse(value?:ID):ID|RawValue|undefined {
   if(value === undefined) return value;
@@ -155,6 +218,22 @@ export class Iterator<T> {
   next():T|undefined {
     if(this.ix < this.length) return this.array[this.ix++];
     return;
+  }
+
+  iter():ReadOnlyIterator<T> {
+    return new ReadOnlyIterator(this.array, this.length);
+  }
+}
+
+export class ReadOnlyIterator<T> extends Iterator<T> {
+  constructor(arr:T[], length:number) {
+    super();
+    this.array = arr;
+    this.length = length;
+  }
+
+  push(value:T) {
+    throw new Error("Cannot write to a readonly iterator");
   }
 }
 
@@ -350,7 +429,6 @@ export var GlobalInterner = new Interner();
 
 //------------------------------------------------------------------------
 // Changes
-//
 //------------------------------------------------------------------------
 
 // Because Eve's runtime is incremental from the ground up, the primary unit of
@@ -372,7 +450,7 @@ export var GlobalInterner = new Interner();
 // the system.
 
 // We track counts as Multiplicities, which are just signed integers.
-type Multiplicity = number;
+export type Multiplicity = number;
 
 // It's often useful to know just the sign of a multiplicity
 function sign (x:number) {
@@ -433,7 +511,10 @@ export class Change {
   }
 }
 
-class RemoveChange extends Change {
+const BLOCK_REMOVE = new Change(0,0,0,0,0,0,-1);
+const BLOCK_ADD = new Change(0,0,0,0,0,0,1);
+
+export class RemoveChange extends Change {
   toString() {
     // let e = GlobalInterner.reverse(this.e);
     let e = this.e;
@@ -445,7 +526,7 @@ class RemoveChange extends Change {
   }
 }
 
-class RemoveVsChange extends RemoveChange {
+export class RemoveVsChange extends RemoveChange {
   toRemoveChanges(context:EvaluationContext, changes:Change[]) {
     let {e,a,v,n} = this;
     let {index, distinctIndex} = context;
@@ -466,10 +547,22 @@ class RemoveVsChange extends RemoveChange {
   }
 }
 
-class RemoveAVsChange extends RemoveVsChange {
+export class RemoveAVsChange extends RemoveVsChange {
   toRemoveChanges(context:EvaluationContext, changes:Change[]) {
-    throw new Error("Implement me!");
+    let {e,a,v,n} = this;
+    let {index, distinctIndex} = context;
+    let matches = index.get(e, IGNORE_REG, IGNORE_REG, IGNORE_REG, this.transaction, Infinity);
+    for(let {a, v} of matches) {
+      let rounds = index.getDiffs(e, a, v, IGNORE_REG);
+      for(let round of rounds) {
+        let count = this.count * (round > 0 ? 1 : -1);
+        let changeRound = Math.max(this.round, Math.abs(round) - 1);
+        let change = new RemoveChange(e!, a!, v!, n!, this.transaction, changeRound, count);
+        changes.push(change);
+      }
+    }
   }
+
   clone() {
     let {e, a, v, n, transaction, round, count} = this;
     return new RemoveAVsChange(e, a, v, n, transaction, round, count);
@@ -581,7 +674,7 @@ export function isRegister(x: any): x is Register {
 // IGNORE_REG is a sentinel value that tells us we don't care what the value of
 // something is when we're solving.
 export var IGNORE_REG = null;
-type IgnoreRegister = typeof IGNORE_REG;
+export type IgnoreRegister = typeof IGNORE_REG;
 
 //------------------------------------------------------------------------
 // Proposal
@@ -602,7 +695,7 @@ export interface Proposal {
 
 export type RoundArray = number[];
 
-enum ApplyInputState {
+export enum ApplyInputState {
   pass,
   fail,
   none,
@@ -626,17 +719,17 @@ export interface Constraint {
 //------------------------------------------------------------------------
 
 /** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
-type ScanField = Register|ID|IgnoreRegister;
+export type ScanField = Register|ID|IgnoreRegister;
 /** A resolved value is a scan field that, if it contained a register, now contains the register's resolved value. */
 export type ResolvedValue = ID|undefined|IgnoreRegister;
 
-type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
+export type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
 
 export class EAVN {
   constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
 };
 
-type EAV = [ID, ID, ID];
+export type EAV = [ID, ID, ID];
 export type RawEAV = [RawValue, RawValue, RawValue];
 export type RawEAVC = [RawValue, RawValue, RawValue, number];
 
@@ -979,8 +1072,8 @@ export class Scan implements Constraint {
 // Function constraint
 //------------------------------------------------------------------------
 
-type ConstraintFieldMap = {[name:string]: ScanField};
-type ResolvedFields = {[fieldName:string]: ResolvedValue};
+export type ConstraintFieldMap = {[name:string]: ScanField};
+export type ResolvedFields = {[fieldName:string]: ResolvedValue};
 
 export class FunctionConstraint implements Constraint {
   static registered: {[name:string]: typeof FunctionConstraint} = {};
@@ -1299,12 +1392,12 @@ export class FunctionConstraint implements Constraint {
     // @NOTE: If we just use solvingFor then we don't know the offsets into the outputs array,
     // so we check everything...
     let ix = 0;
+    let valid = true;
     for(let returnName of this.returnNames) {
       let field = this.fields[returnName];
-      if(isRegister(field) && prefix[field.offset]) {
-        if(prefix[field.offset] !== outputs[ix]) {
-          return false;
-        }
+      let value = isRegister(field) ? prefix[field.offset] : field;
+      if(value !== outputs[ix]) {
+        return false;
       }
       ix++;
     }
@@ -1321,7 +1414,7 @@ export class FunctionConstraint implements Constraint {
   }
 }
 
-interface FunctionSetup {
+export interface FunctionSetup {
   name:string,
   variadic?: boolean,
   args:{[argName:string]: string},
@@ -1357,6 +1450,7 @@ export abstract class Node {
   static NodeID = 0;
   ID = Node.NodeID++;
   traceType:TraceNode;
+  results = new Iterator<Prefix>();
   /**
    * Evaluate the node in the context of the currently solved prefix,
    * returning a set of valid prefixes to continue the query as
@@ -1421,11 +1515,15 @@ export class JoinNode extends Node {
     let registers = createArray() as Register[][];
     let proposedResultsArrays = createArray() as ID[][];
     let hasOnlyMoves = true;
+    let hasNoScans = true;
     let onlyStatic = true;
     for(let constraint of constraints) {
       constraint.setup();
       if(!(constraint instanceof MoveConstraint)) hasOnlyMoves = false;
       else if(!constraint.isStatic) onlyStatic = false;
+
+      if(constraint instanceof Scan) hasNoScans = false;
+
       for(let register of constraint.getRegisters()) {
         if(!registerLookup[register.offset]) {
           registers.push(createArray() as Register[]);
@@ -1441,6 +1539,10 @@ export class JoinNode extends Node {
         constraint.shouldApplyInput = true;
       }
       this.isStatic = onlyStatic;
+    }
+
+    if(hasNoScans) {
+      this.exec = JoinNode.prototype.downStreamExec;
     }
 
     this.registerLookup = registerLookup;
@@ -1474,8 +1576,10 @@ export class JoinNode extends Node {
       if(prefix[ix] !== undefined) countOfSolved++;
     }
     let remainingToSolve = this.registerLength - countOfSolved;
+    // context.tracer.tracker.blockTime("PresolveCheck");
     let valid = this.presolveCheck(context, input, prefix, transaction, round);
-    //debug("        Join combo valid:", valid, remainingToSolve, countOfSolved, this.registerLength);
+    // context.tracer.tracker.blockTimeEnd("PresolveCheck");
+    // debug("        Join combo valid:", valid, remainingToSolve, countOfSolved, this.registerLength);
     if(!valid) {
       // do nothing
       return false;
@@ -1490,8 +1594,8 @@ export class JoinNode extends Node {
     } else {
       // debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
-      let ol = results.length;
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
+      // context.tracer.tracker.blockTimeEnd("GenericJoin");
       return true;
     }
   }
@@ -1600,7 +1704,7 @@ export class JoinNode extends Node {
     // rounds might overwrite the proposal
     moveArray(bestProposal.forRegisters.array, forRegisters);
     let resolved:any[] = proposer.resolveProposal(context, prefix, bestProposal, transaction, round, proposedResults);
-    if(resolved[0].constructor === Array) {
+    if(resolved[0] && resolved[0].constructor === Array) {
       resultLoop: for(let result of resolved) {
         let ix = 0;
         for(let register of forRegisters) {
@@ -1648,53 +1752,77 @@ export class JoinNode extends Node {
     return results;
   }
 
-  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
+  downStreamExec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>) {
     if(this.isStatic && this.dormant) return false;
 
-    this.inputCount = input.count;
+    this.inputCount = prefix[prefix.length - 1] !== undefined ? prefix[prefix.length - 1] : input.count;
+    let inputRound = prefix[prefix.length - 2] !== undefined ? prefix[prefix.length - 2] : input.round;
+    let didSomething = this.applyCombination(context, input, prefix, transaction, inputRound, results);
+
+    if(this.isStatic && didSomething) {
+      this.dormant = true;
+    }
+    return didSomething;
+  }
+
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
     let didSomething = false;
-    let affectedConstraints = this.findAffectedConstraints(input, prefix);
+    this.inputCount = input.count;
 
-    let combinationCount = Math.pow(2, affectedConstraints.length);
-    for(let comboIx = combinationCount - 1; comboIx > 0; comboIx--) {
-      //console.log("  Combo:", comboIx);
+    // if we are removing the block, we need the join to compute all the results currently
+    // being generated by this block and undo them. We do this by sending a blank prefix
+    // through with an input count of -1.
+    if(input === BLOCK_REMOVE) {
+      didSomething = this.applyCombination(context, input, prefix, transaction, round, results);
+    } else if(this.isStatic && this.dormant) {
+      return false;
+    } else if(input === BLOCK_ADD) {
+      didSomething = this.applyCombination(context, input, prefix, transaction, round, results);
+    } else {
+      this.inputCount = input.count;
+      let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
-      let shouldApply = true;
+      let combinationCount = Math.pow(2, affectedConstraints.length);
+      for(let comboIx = combinationCount - 1; comboIx > 0; comboIx--) {
+        //console.log("  Combo:", comboIx);
 
-      for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
-        let mask = 1 << constraintIx;
-        let isIncluded = (comboIx & mask) !== 0;
-        let constraint = affectedConstraints.array[constraintIx];
-        constraint.isInput = isIncluded;
+        let shouldApply = true;
 
-        if(isIncluded) {
-          let valid = constraint.applyInput(input, prefix);
-          // debug("        included", printConstraint(constraint));
-          // If any member of the input constraints fails, this whole combination is doomed.
-          if(valid === ApplyInputState.fail) {
-            shouldApply = false;
-            break;
+        for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
+          let mask = 1 << constraintIx;
+          let isIncluded = (comboIx & mask) !== 0;
+          let constraint = affectedConstraints.array[constraintIx];
+          constraint.isInput = isIncluded;
+
+          if(isIncluded) {
+            let valid = constraint.applyInput(input, prefix);
+            // debug("        included", printConstraint(constraint));
+            // If any member of the input constraints fails, this whole combination is doomed.
+            if(valid === ApplyInputState.fail) {
+              shouldApply = false;
+              break;
+            }
+            //console.log("    " + printConstraint(constraint));
           }
-          //console.log("    " + printConstraint(constraint));
+        }
+
+        //console.log("    ", printPrefix(prefix));
+        if(shouldApply) {
+          didSomething = this.applyCombination(context, input, prefix, transaction, round, results) || didSomething;
+        }
+
+        let constraint;
+        affectedConstraints.reset();
+        while((constraint = affectedConstraints.next()) !== undefined) {
+          this.unapplyConstraint(constraint, prefix);
         }
       }
 
-      //console.log("    ", printPrefix(prefix));
-      if(shouldApply) {
-        didSomething = this.applyCombination(context, input, prefix, transaction, round, results) || didSomething;
-      }
-
-      let constraint;
       affectedConstraints.reset();
+      let constraint;
       while((constraint = affectedConstraints.next()) !== undefined) {
-        this.unapplyConstraint(constraint, prefix);
+        constraint.isInput = false;
       }
-    }
-
-    affectedConstraints.reset();
-    let constraint;
-    while((constraint = affectedConstraints.next()) !== undefined) {
-      constraint.isInput = false;
     }
 
     if(this.isStatic && didSomething) {
@@ -1703,15 +1831,11 @@ export class JoinNode extends Node {
 
     return didSomething;
   }
-
 }
 
 export class DownstreamJoinNode extends JoinNode {
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
-    this.inputCount = prefix[prefix.length - 1];
-    let inputRound = prefix[prefix.length - 2];
-    let didSomething = this.applyCombination(context, input, prefix, transaction, inputRound, results);
-    return didSomething;
+    return this.downStreamExec(context, input, prefix, transaction, round, results);
   }
 }
 
@@ -1878,12 +2002,51 @@ export class CommitRemoveNode extends CommitInsertNode {
 }
 
 //------------------------------------------------------------------------------
+// LinearFlow
+//------------------------------------------------------------------------------
+
+export class LinearFlow extends Node {
+  traceType = TraceNode.LinearFlow;
+  results = new Iterator<Prefix>();
+  initialResults = new Iterator<Prefix>();
+
+  constructor(public nodes:Node[]) {
+    super();
+  }
+
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+    this.initialResults.clear();
+    this.initialResults.push(prefix);
+    // We populate the prefix with values from the input change so we only derive the
+    // results affected by it.
+    let curPrefix;
+    let iter = this.initialResults;
+    for(let node of this.nodes) {
+      if(iter.length === 0) return false;
+      node.results.clear();
+      while(curPrefix = iter.next()) {
+        context.tracer.node(node, curPrefix);
+        let valid = node.exec(context, input, curPrefix, transaction, round, node.results, changes);
+        context.tracer.pop(TraceFrameType.Node);
+      }
+      iter = node.results.iter();
+    }
+
+    while(curPrefix = iter.next()) {
+      results.push(curPrefix);
+    }
+
+    return true;
+  }
+}
+
+//------------------------------------------------------------------------------
 // BinaryFlow
 //------------------------------------------------------------------------------
 
-type KeyFunction = (prefix:Prefix) => string;
+export type KeyFunction = (prefix:Prefix) => string;
 
-class IntermediateIndexIterator {
+export class IntermediateIndexIterator {
   values:{[value:string]: any[]};
   valueKeys:string[];
   currentCounts: any[];
@@ -1945,7 +2108,7 @@ class IntermediateIndexIterator {
   }
 }
 
-class IntermediateIndex {
+export class IntermediateIndex {
   static CreateKeyFunction(registers:Register[]):KeyFunction {
     let items = registers.map((reg) => {
       return `prefix[${reg.offset}]`;
@@ -2002,7 +2165,7 @@ class IntermediateIndex {
   }
 }
 
-class ZeroingIterator {
+export class ZeroingIterator {
   counts:Multiplicity[];
   roundIx = -1;
   countSum = 0;
@@ -2059,7 +2222,7 @@ class ZeroingIterator {
   }
 }
 
-class KeyOnlyIntermediateIndex {
+export class KeyOnlyIntermediateIndex {
   index:{[key:string]: Multiplicity[]} = {};
   iterator = new ZeroingIterator();
 
@@ -2084,32 +2247,36 @@ class KeyOnlyIntermediateIndex {
     }
   }
 
+  has(key:string) {
+    return this.index[key] ? true : false;
+  }
+
   iter(key:string, round:number):ZeroingIterator|undefined {
     let values = this.index[key];
     if(values) return this.iterator.reset(values, round);
   }
 }
 
-abstract class BinaryFlow extends Node {
+export abstract class BinaryFlow extends Node {
   traceType = TraceNode.BinaryJoin;
-  leftResults = new Iterator<Prefix>();
-  rightResults = new Iterator<Prefix>();
 
   constructor(public left:Node, public right:Node) {
     super();
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    let {left, right, leftResults, rightResults} = this;
-    leftResults.clear();
+    let {left, right} = this;
+    left.results.clear();
     context.tracer.node(left, prefix);
-    left.exec(context, input, prefix, transaction, round, leftResults, changes);
+    left.exec(context, input, prefix, transaction, round, left.results, changes);
     context.tracer.pop(TraceFrameType.Node);
-    rightResults.clear();
+    right.results.clear();
     context.tracer.node(right, prefix);
-    right.exec(context, input, prefix, transaction, round, rightResults, changes);
+    right.exec(context, input, prefix, transaction, round, right.results, changes);
     context.tracer.pop(TraceFrameType.Node);
     let result;
+    let leftResults = left.results.iter();
+    let rightResults = right.results.iter();
     while((result = leftResults.next()) !== undefined) {
       this.onLeft(context, result, transaction, round, results);
     }
@@ -2135,12 +2302,13 @@ export class BinaryJoinRight extends BinaryFlow {
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     // debug("    Binary Join Right:")
-    let {left, right, leftResults, rightResults} = this;
-    leftResults.reset();
-    rightResults.clear();
+    let {left, right} = this;
+    right.results.clear();
     context.tracer.node(right, prefix);
-    right.exec(context, input, prefix, transaction, round, rightResults, changes);
+    right.exec(context, input, prefix, transaction, round, right.results, changes);
     context.tracer.pop(TraceFrameType.Node);
+    let leftResults = left.results.iter();
+    let rightResults = right.results.iter();
     let result;
     while((result = leftResults.next()) !== undefined) {
       this.onLeft(context, result, transaction, round, results);
@@ -2154,8 +2322,15 @@ export class BinaryJoinRight extends BinaryFlow {
 
   merge(left:Prefix, right:Prefix) {
     for(let register of this.registersToMerge) {
-      left[register.offset] = right[register.offset];
+      let leftValue = left[register.offset];
+      let rightValue = right[register.offset];
+      if(leftValue === undefined || leftValue === rightValue) {
+        left[register.offset] = rightValue
+      } else {
+        return false;
+      }
     }
+    return true;
   }
 
   onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
@@ -2169,12 +2344,13 @@ export class BinaryJoinRight extends BinaryFlow {
     let rightPrefix;
     while(rightPrefix = diffs.next()) {
       let result = copyArray(prefix, "BinaryJoinResult");
-      this.merge(result, rightPrefix)
-      result[result.length - 2] = Math.max(prefixRound, diffs.round);
-      result[result.length - 1] = count * diffs.count;
-      context.tracer.capturePrefix(result);
-      results.push(result);
-      // debug("               join left -> ", printPrefix(result), diffs.round, count, diffs.count);
+      if(this.merge(result, rightPrefix)) {
+        result[result.length - 2] = Math.max(prefixRound, diffs.round);
+        result[result.length - 1] = count * diffs.count;
+        context.tracer.capturePrefix(result);
+        results.push(result);
+        // debug("               join left -> ", printPrefix(result), diffs.round, count, diffs.count);
+      }
     }
   }
 
@@ -2189,12 +2365,13 @@ export class BinaryJoinRight extends BinaryFlow {
     let leftPrefix;
     while(leftPrefix = diffs.next()) {
       let result = copyArray(leftPrefix, "BinaryJoinResult");
-      this.merge(result, prefix)
-      result[result.length - 2] = Math.max(prefixRound, diffs.round);
-      result[result.length - 1] = count * diffs.count;
-      context.tracer.capturePrefix(result);
-      results.push(result);
-      // debug("              join right -> ", printPrefix(result.slice()), diffs.round, count, diffs.count);
+      if(this.merge(result, prefix)) {
+        result[result.length - 2] = Math.max(prefixRound, diffs.round);
+        result[result.length - 1] = count * diffs.count;
+        context.tracer.capturePrefix(result);
+        results.push(result);
+        // debug("              join right -> ", printPrefix(result.slice()), diffs.round, count, diffs.count);
+      }
     }
   }
 }
@@ -2278,12 +2455,13 @@ export class AntiJoin extends BinaryFlow {
 export class AntiJoinPresolvedRight extends AntiJoin {
   traceType = TraceNode.AntiJoinPresolvedRight;
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    let {left, right, leftResults, rightResults} = this;
-    leftResults.clear();
+    let {left, right} = this;
+    left.results.clear();
     context.tracer.node(left, prefix);
-    left.exec(context, input, prefix, transaction, round, leftResults, changes);
+    left.exec(context, input, prefix, transaction, round, left.results, changes);
     context.tracer.pop(TraceFrameType.Node);
-    rightResults.reset();
+    let leftResults = left.results.iter();
+    let rightResults = right.results.iter();
     let result;
     while((result = leftResults.next()) !== undefined) {
       this.onLeft(context, result, transaction, round, results);
@@ -2297,46 +2475,55 @@ export class AntiJoinPresolvedRight extends AntiJoin {
 
 export class UnionFlow extends Node {
   traceType = TraceNode.Union;
-  leftResults = new Iterator<Prefix>();
   branches:BinaryJoinRight[] = [];
+  emptyResults = new Iterator<Prefix>();
 
-  constructor(public left:Node, branches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[]) {
+  constructor(public left:Node, branches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[], public extraOuterJoins:Register[]) {
     super();
     let ix = 0;
     for(let branch of branches) {
-      this.branches.push(new BinaryJoinRight(left, branch, keyRegisters[ix], registersToMerge));
+      this.branches.push(new BinaryJoinRight(left, branch, keyRegisters[ix].concat(extraOuterJoins), registersToMerge));
       ix++;
     }
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    let {left, leftResults} = this;
+    let {left} = this;
     let {tracer} = context;
+    let tempLeftResults = left.results;
 
-    leftResults.clear();
+    left.results.clear();
     tracer.node(left, prefix);
-    left.exec(context, input, prefix, transaction, round, leftResults, changes);
+    left.exec(context, input, prefix, transaction, round, left.results, changes);
     tracer.pop(TraceFrameType.Node);
 
-    let leftCopy = new Iterator<Prefix>();
     let leftPrefix;
-    leftResults.reset();
-    while((leftPrefix = leftResults.next()) !== undefined) {
-      leftCopy.push(leftPrefix);
-    }
+    let leftResults = left.results.iter();
     for(let node of this.branches) {
-      let lastLeft = node.leftResults;
-      node.leftResults = leftResults;
+      node.results.clear();
+
       tracer.node(node, prefix);
-      node.exec(context, input, prefix, transaction, round, results, changes);
+      node.exec(context, input, prefix, transaction, round, node.results, changes);
       tracer.pop(TraceFrameType.Node);
 
-      node.leftResults = lastLeft;
-      leftCopy.reset();
-      while((leftPrefix = leftCopy.next()) !== undefined) {
+      // Because we've already run this node once, we don't want it to potentially see the left's
+      // results multiple times. As such, we temporarily set the results to an empty iterator
+      // so that downstream nodes see nothing and we set it back once we've gone through
+      // all the left prefixes.
+      left.results = this.emptyResults;
+      leftResults.reset();
+      while((leftPrefix = leftResults.next()) !== undefined) {
         tracer.node(node, leftPrefix);
-        node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, results, changes);
+        node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, node.results, changes);
         tracer.pop(TraceFrameType.Node);
+      }
+      // set the left results back to the real results
+      left.results = tempLeftResults;
+
+      let branchResults = node.results.iter();
+      let result;
+      while((result = branchResults.next())) {
+        results.push(result);
       }
 
     }
@@ -2347,10 +2534,10 @@ export class UnionFlow extends Node {
 export class ChooseFlow extends Node {
   traceType = TraceNode.Choose;
   leftResults = new Iterator<Prefix>();
+  emptyResults = new Iterator<Prefix>();
   branches:(BinaryJoinRight|AntiJoinPresolvedRight)[] = [];
-  branchResults:Iterator<Prefix>[] = [];
 
-  constructor(public left:Node, initialBranches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[]) {
+  constructor(public left:Node, initialBranches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[], public extraOuterJoins:Register[]) {
     super();
     let allKeys:Register[] = []
     for(let keySet of keyRegisters) {
@@ -2360,7 +2547,7 @@ export class ChooseFlow extends Node {
         }
       }
     }
-    let {branches, branchResults} = this;
+    let {branches} = this;
     let prev:Node|undefined;
     let ix = 0;
     for(let branch of initialBranches) {
@@ -2368,14 +2555,13 @@ export class ChooseFlow extends Node {
       if(prev) {
         let myKeys = keyRegisters[ix];
 
-        join = new BinaryJoinRight(left, branch, myKeys, registersToMerge);
-        let antijoin = new AntiJoinPresolvedRight(join, prev, allKeys);
+        join = new BinaryJoinRight(left, branch, myKeys.concat(extraOuterJoins), registersToMerge);
+        let antijoin = new AntiJoinPresolvedRight(join, this, allKeys);
         branches.push(antijoin);
       } else {
-        join = new BinaryJoinRight(left, branch, keyRegisters[ix], registersToMerge);
+        join = new BinaryJoinRight(left, branch, keyRegisters[ix].concat(extraOuterJoins), registersToMerge);
         branches.push(join);
       }
-      branchResults.push(new Iterator<Prefix>());
       prev = join;
       ix++;
     }
@@ -2383,65 +2569,50 @@ export class ChooseFlow extends Node {
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {tracer} = context;
-    let {branchResults, branches, left, leftResults} = this;
+    let {branches, left} = this;
     let prev:Iterator<Prefix>|undefined;
     let ix = 0;
+    let tempResults = this.results;
+    let tempLeftResults = left.results;
 
-    leftResults.clear();
+    left.results.clear();
     tracer.node(left, prefix);
-    left.exec(context, input, prefix, transaction, round, leftResults, changes);
+    left.exec(context, input, prefix, transaction, round, left.results, changes);
     tracer.pop(TraceFrameType.Node);
 
-    let leftCopy = new Iterator<Prefix>();
+    let leftResults = left.results.iter();
     let leftPrefix;
-    leftResults.reset();
-    while((leftPrefix = leftResults.next()) !== undefined) {
-      leftCopy.push(leftPrefix);
-    }
 
     for(let node of branches) {
-      let lastLeft;
-      let lastRight;
-      if(prev) {
-        let binaryJoin = node.left as BinaryJoinRight;
-        lastRight = node.rightResults;
-        node.rightResults = prev;
-        lastLeft = binaryJoin.leftResults;
-        binaryJoin.leftResults = leftResults;
-      } else {
-        lastLeft = node.leftResults;
-        node.leftResults = leftResults;
-      }
-      let branchResult = branchResults[ix];
-      branchResult.clear();
-      leftResults.reset();
 
+      node.results.clear();
       tracer.node(node, prefix);
-      node.exec(context, input, prefix, transaction, round, branchResult, changes);
+      node.exec(context, input, prefix, transaction, round, node.results, changes);
       tracer.pop(TraceFrameType.Node);
 
-      if(prev) {
-        let binaryJoin = node.left as BinaryJoinRight;
-        // @NOTE: We know lastRight was set from this AntiJoin's previous right.
-        node.rightResults = lastRight!;
-        binaryJoin.leftResults = lastLeft;
-      } else {
-        node.leftResults = lastLeft;
-      }
-      leftCopy.reset();
-      while((leftPrefix = leftCopy.next()) !== undefined) {
+      // Because we've already run this node once, we don't want it to potentially see our
+      // results multiple times. As such, we temporarily set our results to an empty iterator
+      // so that downstream nodes see nothing and we set it back once we've gone through
+      // all the left prefixes. This ensures that AntiJoinPresolvedRight only sees the previous
+      // branches' results once. We also need to do this for our left's results, since we'll have
+      // seen those as well and would otherwise double count them.
+      this.results = this.emptyResults;
+      left.results = this.emptyResults;
+      leftResults.reset();
+      while((leftPrefix = leftResults.next()) !== undefined) {
         tracer.node(node, leftPrefix);
-        node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, branchResult, changes);
+        node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, node.results, changes);
         tracer.pop(TraceFrameType.Node);
       }
+      // per above, make sure we set our results back to the real iterator
+      this.results = tempResults;
+      left.results = tempLeftResults;
+      let branchResult = node.results.iter();
       let result;
       while((result = branchResult.next()) !== undefined) {
         tracer.capturePrefix(result);
         results.push(result);
       }
-      results.reset();
-      prev = results;
-      ix++;
     }
     return true;
   }
@@ -2451,16 +2622,17 @@ export class MergeAggregateFlow extends BinaryJoinRight {
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     // debug("        AGG MERGE");
     let result;
-    let {left, right, leftResults, rightResults} = this;
-    leftResults.clear();
-    left.exec(context, input, prefix, transaction, round, leftResults, changes);
+    let {left, right} = this;
+    left.results.clear();
+    left.exec(context, input, prefix, transaction, round, left.results, changes);
     // debug("              left results: ", leftResults);
 
+    let leftResults = left.results.iter();
     // we run the left's results through the aggregate to capture all the aggregate updates
-    rightResults.clear();
+    right.results.clear();
     while((result = leftResults.next()) !== undefined) {
       // debug("              left result: ", result.slice());
-      right.exec(context, input, result, transaction, round, rightResults, changes);
+      right.exec(context, input, result, transaction, round, right.results, changes);
     }
 
     // now we go through all the lefts and rights like normal
@@ -2468,10 +2640,91 @@ export class MergeAggregateFlow extends BinaryJoinRight {
     while((result = leftResults.next()) !== undefined) {
       this.onLeft(context, result, transaction, round, results);
     }
+    let rightResults = right.results.iter();
     while((result = rightResults.next()) !== undefined) {
       this.onRight(context, result, transaction, round, results);
     }
     return true;
+  }
+}
+
+// This node is a bit strange, but is required to make sure that aggregates
+// that are inside of a choose don't end up seeing results that wouldn't actually
+// join with the outer scope of the choose. For example if we have the following rule:
+//
+// prog.block("count the names of people", ({find, gather, record, choose}) => {
+//   let person = find("person");
+//   let [sort] = choose(() => {
+//     return gather(person.name).count();
+//   }, () => "yo yo yo");
+//   return [person.add("next", sort)];
+// });
+//
+// If we join the choose branch to the outer *after* we've aggregated, then we're
+// going to count everything with a name whether they're a person or not. Instead
+// we need to make sure there is a join with the outer scope before it makes it to
+// the choose. To do that, the AggregateOuterLookup node just keeps track of every
+// value it has seen from the outer and makes sure that each right has a join with
+// it.
+export class AggregateOuterLookup extends BinaryFlow {
+  traceType = TraceNode.AggregateOuterLookup;
+  keyFunc:KeyFunction;
+  leftIndex:KeyOnlyIntermediateIndex = new KeyOnlyIntermediateIndex();
+  rightIndex:IntermediateIndex = new IntermediateIndex();
+
+  constructor(public left:Node, public right:Node, public keyRegisters:Register[]) {
+    super(left, right);
+    this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
+  }
+
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+    let {left, right} = this;
+    right.results.clear();
+    context.tracer.node(right, prefix);
+    right.exec(context, input, prefix, transaction, round, right.results, changes);
+    context.tracer.pop(TraceFrameType.Node);
+    let result;
+    let leftResults = left.results.iter();
+    while((result = leftResults.next()) !== undefined) {
+      this.onLeft(context, result, transaction, round, results);
+    }
+    let rightResults = right.results.iter();
+    while((result = rightResults.next()) !== undefined) {
+      this.onRight(context, result, transaction, round, results);
+    }
+    return true;
+  }
+
+  onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+    let key = this.keyFunc(prefix);
+    let exists = this.leftIndex.has(key);
+    this.leftIndex.insert(key, prefix);
+    let afterExists = this.leftIndex.has(key);
+    let diffs = this.rightIndex.iter(key, 0);
+    if(exists && afterExists || !diffs) return;
+
+    let multiplier = 1;
+    if(exists && !afterExists) {
+      // remove
+      multiplier = -1;
+    }
+
+    let rightPrefix;
+    while(rightPrefix = diffs.next()) {
+      let result = copyArray(rightPrefix, "aggregateLookupResult");
+      result[result.length - 2] = diffs.round;
+      result[result.length - 1] = diffs.count * multiplier;
+      context.tracer.capturePrefix(result);
+      results.push(result);
+    }
+  }
+
+  onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+    let key = this.keyFunc(prefix);
+    this.rightIndex.insert(key, prefix);
+    if(this.leftIndex.has(key)) {
+      results.push(prefix);
+    }
   }
 }
 
@@ -2484,14 +2737,14 @@ export abstract class AggregateNode extends Node {
   registerLookup:boolean[] = [];
 
   // @TODO: allow for multiple returns
-  constructor(public groupRegisters:Register[], public projectRegisters:Register[], public inputs:(ID|Register)[], public results:Register[]) {
+  constructor(public groupRegisters:Register[], public projectRegisters:Register[], public inputs:(ID|Register)[], public resultRegisters:Register[]) {
     super();
     this.groupKey = IntermediateIndex.CreateKeyFunction(groupRegisters);
     this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
     for(let reg of groupRegisters) {
       this.registerLookup[reg.offset] = true;
     }
-    for(let reg of results) {
+    for(let reg of resultRegisters) {
       this.registerLookup[reg.offset] = true;
     }
   }
@@ -2536,7 +2789,7 @@ export abstract class AggregateNode extends Node {
 
   getResultPrefix(prefix:Prefix, result:ID, count:Multiplicity):Prefix {
     let neue = copyArray(prefix, "aggregateResult");
-    neue[this.results[0].offset] = result;
+    neue[this.resultRegisters[0].offset] = result;
     neue[neue.length - 1] = count;
     let ix = 0;
     while(ix < neue.length - 2) {
@@ -2614,24 +2867,207 @@ export abstract class AggregateNode extends Node {
 
 }
 
-type SumAggregateState = {total:number};
-export class SumAggregate extends AggregateNode {
-  add(state:SumAggregateState, resolved:RawValue[]):any {
-    state.total += resolved[0] as number;
-    return state;
-  }
-  remove(state:SumAggregateState, resolved:RawValue[]):any {
-    state.total -= resolved[0] as number;
-    return state;
-  }
-  getResult(state:SumAggregateState):RawValue {
-    return state.total;
-  }
-  newResultState():SumAggregateState {
-    return {total: 0};
-  };
-}
+//------------------------------------------------------------------------------
+// SortNode
+//------------------------------------------------------------------------------
 
+export abstract class SortNode extends Node {
+  traceType = TraceNode.Aggregate;
+  groupKey:Function;
+  projectKey:Function;
+  groups:{[group:string]: {result:any[], [projection:string]: Multiplicity[]}} = {};
+  resolved:ID[] = [];
+  resolvedDirections:RawValue[] = [];
+  sortRegisters:Register[];
+
+  // @TODO: allow for multiple returns
+  constructor(public groupRegisters:Register[], public projectRegisters:Register[], public directions:(ID|Register)[], public resultRegisters:Register[]) {
+    super();
+    this.groupKey = IntermediateIndex.CreateKeyFunction(groupRegisters);
+    this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
+    this.sortRegisters = groupRegisters.concat(projectRegisters).filter(isRegister);
+  }
+
+  groupPrefix(group:string, prefix:Prefix) {
+    let projection = this.projectKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+    let delta = 0;
+    let found = this.groups[group];
+    if(!found) {
+      found = this.groups[group] = {result: []};
+    }
+    let counts = found[projection] || [];
+    let totalCount = 0;
+
+    let countIx = 0;
+    for(let count of counts) {
+      // we need the total up to our current round
+      if(countIx > prefixRound) break;
+      if(!count) continue;
+      totalCount += count;
+      countIx++;
+    }
+    if(totalCount && totalCount + prefixCount <= 0) {
+      // subtract
+      delta = -1;
+    } else if(totalCount === 0 && totalCount + prefixCount > 0) {
+      // add
+      delta = 1;
+    } else if(totalCount + prefixCount < 0) {
+      // we have removed more values than exist?
+      throw new Error("Negative total count for an aggregate projection");
+    } else {
+      // otherwise this change doesn't impact the projected count, we've just added
+      // or removed a support.
+    }
+    counts[prefixRound] = (counts[prefixRound] || 0) + prefixCount;
+    found[projection] = counts;
+    return delta;
+  }
+
+  resolve(prefix:Prefix):ID[] {
+    let {resolved, resolvedDirections} = this;
+    if(resolved.length < prefix.length) resolved.length = prefix.length;
+    for(let field of this.sortRegisters) {
+      if(isRegister(field)) {
+        resolved[field.offset] = prefix[field.offset];
+      }
+    }
+    let ix = 0;
+    for(let field of this.directions) {
+      if(isRegister(field)) {
+        resolvedDirections[ix] = GlobalInterner.reverse(prefix[field.offset]);
+      } else {
+        resolvedDirections[ix] = GlobalInterner.reverse(field);
+      }
+      ix++;
+    }
+    return resolved;
+  }
+
+  isGreater(a:Prefix, b:Prefix):string|false {
+    let {resolvedDirections} = this;
+    let dirIx = 0;
+    let dir = resolvedDirections[dirIx] || "up";
+    for(let register of this.projectRegisters) {
+      let {offset} = register;
+      let aV = GlobalInterner.reverse(a[offset]);
+      let bV = GlobalInterner.reverse(b[offset]);
+      if((dir === "up" &&  aV > bV) ||
+         (dir === "down" && aV < bV)) {
+        return dir;
+      } else if(aV !== bV) {
+        return false;
+      }
+      dirIx++;
+      dir = resolvedDirections[dirIx] || dir;
+    }
+    return false;
+  }
+
+  prefixEqual(a:Prefix, b:Prefix) {
+    let ix = -1;
+    for(let field of a) {
+      ix++;
+      if(field !== b[ix]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+    let group = this.groupKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
+    let delta = this.groupPrefix(group, prefix);
+    let op = this.add;
+    if(!delta) return false;
+    if(delta < 0) op = this.remove;
+
+    let groupStates = this.groups[group].result;
+    let currentState = groupStates[prefixRound];
+    if(!currentState) {
+      // otherwise we have to find the most recent result that we've seen
+      for(let ix = 0, len = Math.min(groupStates.length, prefixRound); ix < len; ix++) {
+        let current = groupStates[ix];
+        if(current === undefined) continue;
+        currentState = copyHash(current, "SortState");
+      }
+    }
+    let resolved = this.resolve(prefix);
+    let start = prefixRound;
+    groupStates[prefixRound] = currentState;
+    if(!currentState) {
+      currentState = groupStates[prefixRound] = op(this.newResultState(), resolved, prefixRound, results);
+      start = prefixRound + 1;
+    }
+    for(let ix = start, len = Math.max(groupStates.length, prefixRound + 1); ix < len; ix++) {
+      let current = groupStates[ix];
+      if(current === undefined) continue;
+
+      current = groupStates[prefixRound] = op(current, resolved, ix, results);
+    }
+    return true;
+  }
+
+  resultPrefix(prefix:Prefix, outOffset:number, pos:number, round:number, count:Multiplicity) {
+    let item = copyArray(prefix, "SortResult");
+    // add one here because we're one indexed
+    item[outOffset] = GlobalInterner.intern(pos + 1);
+    item[item.length - 2] = round;
+    item[item.length - 1] = count;
+    return item;
+  }
+
+  add = (state:any, resolved:ID[], round:number, results:Iterator<Prefix>):any => {
+    let {resultPrefix} = this;
+    let neue = copyArray(resolved, "SortIntermediate");
+    let ix = 0;
+    for(let item of state.sorted) {
+      if(this.isGreater(item, resolved)) {
+        break;
+      }
+      ix++;
+    }
+    let outOffset = this.resultRegisters[0].offset;
+    state.sorted.splice(ix, 0, neue);
+    results.push(resultPrefix(neue, outOffset, ix, round, 1));
+    ix++;
+    for(; ix < state.sorted.length; ix++) {
+      let cur = state.sorted[ix];
+      results.push(resultPrefix(cur, outOffset, ix - 1, round, -1));
+      results.push(resultPrefix(cur, outOffset, ix, round, 1));
+    }
+    return state;
+  }
+
+  remove = (state:any, resolved:ID[], round:number, results:Iterator<Prefix>):any => {
+    let {resultPrefix} = this;
+    let ix = 0;
+    let found = false;
+    for(let item of state.sorted) {
+      if(this.prefixEqual(item, resolved)) {
+        break;
+      }
+      ix++;
+    }
+    state.sorted.splice(ix, 1);
+    let outOffset = this.resultRegisters[0].offset;
+    results.push(resultPrefix(resolved, outOffset, ix, round, -1));
+    for(; ix < state.sorted.length; ix++) {
+      let cur = state.sorted[ix];
+      results.push(resultPrefix(cur, outOffset, ix + 1, round, -1));
+      results.push(resultPrefix(cur, outOffset, ix, round, 1));
+    }
+    return state;
+  }
+
+  newResultState():any {
+    return {sorted: [], sortLookup: {}};
+  }
+
+}
 
 //------------------------------------------------------------------------------
 // Block
@@ -2640,39 +3076,26 @@ export class SumAggregate extends AggregateNode {
 export class Block {
   constructor(public name:string, public nodes:Node[], public totalRegisters:number) {}
 
-  // We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
   results = new Iterator<Prefix>();
   initial:Prefix = createArray();
-  protected nextResults = new Iterator<Prefix>();
 
   exec(context:EvaluationContext, input:Change, transaction:Transaction):boolean {
-    let blockState = ApplyInputState.none;
     this.results.clear();
     this.results.push(this.initial);
     for(let ix = 0; ix < this.totalRegisters + 2; ix++) {
       this.initial[ix] = undefined as any;
     }
-    this.nextResults.clear();
     let prefix;
-    // We populate the prefix with values from the input change so we only derive the
-    // results affected by it.
+    let iter = this.results;
     for(let node of this.nodes) {
-      while((prefix = this.results.next()) !== undefined) {
+      node.results.clear();
+      if(iter.length === 0) return false;
+      while((prefix = iter.next()) !== undefined) {
         context.tracer.node(node, prefix);
-        let valid = node.exec(context, input, prefix, transaction.transaction, transaction.round, this.nextResults, transaction);
+        let valid = node.exec(context, input, prefix, transaction.transaction, transaction.round, node.results, transaction);
         context.tracer.pop(TraceFrameType.Node);
-        if(!valid) {
-          return false;
-        }
       }
-      let tmp = this.results;
-      this.results = this.nextResults;
-      this.nextResults = tmp;
-      // if(this.results.length) {
-      //   console.log("  Triggered ", this.name);
-      // }
-      // @NOTE: We don't really want to shrink this array probably.
-      this.nextResults.clear();
+      iter = node.results.iter();
     }
 
     return true;
@@ -2900,7 +3323,6 @@ export class Transaction {
     let {changes, roundChanges} = this;
     let {index, tracer} = context;
     tracer.frame([]);
-    // console.log("T", this.transaction)
     let total = 0;
     let frames = 0;
     let changeIx = 0;
@@ -2915,7 +3337,7 @@ export class Transaction {
       }
       if(this.round !== 0 && change.round === 0) {
         frames++;
-        if(frames > 4) {
+        if(frames > 10) {
           console.error("Failed to terminate");
           break;
         }
@@ -2937,8 +3359,6 @@ export class Transaction {
       changeIx++;
       this.prepareRound(context, changeIx);
     }
-
-    // console.log(context);
 
     let exportingBlocks = Object.keys(this.exportedChanges);
     if(exportingBlocks.length) {
@@ -2962,6 +3382,28 @@ export class Transaction {
     // safely release.
     GlobalInterner.releaseArena("functionOutput");
     tracer.pop(TraceFrameType.Transaction);
+  }
+}
+
+export class BlockChangeTransaction extends Transaction {
+  constructor(public context:EvaluationContext, public transaction:number, public added:Block[], public removed:Block[], public blocks:Block[], protected exportHandler?:ExportHandler) {
+    super(context, transaction, blocks, exportHandler);
+  }
+
+  exec(context:EvaluationContext) {
+    // To remove a block, we run a change with negative count through the system that
+    // is meant to compute all the results the block has generated and remove them.
+    for(let remove of this.removed) {
+      remove.exec(context, BLOCK_REMOVE, this);
+    }
+
+    // To add a block, we do the same as remove, but with a positive change that causes
+    // the block to compute all results based on the state of the indexes
+    for(let add of this.added) {
+      add.exec(context, BLOCK_ADD, this);
+    }
+
+    super.exec(context);
   }
 }
 

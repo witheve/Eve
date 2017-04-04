@@ -1,6 +1,7 @@
 import {Change, Prefix, EvaluationContext, GlobalInterner, printPrefix} from "./runtime";
 import * as Runtime from "./runtime";
 import {Renderer} from "../microReact";
+import {PerformanceTracker} from "./performance"
 
 function isID(v: any) {
   return typeof v === "string" && (v.indexOf("|") > -1 || (v[8] === "-" && v.length === 36))
@@ -63,10 +64,12 @@ export enum TraceNode {
   Join,
   Choose,
   Union,
+  LinearFlow,
   BinaryJoin,
   AntiJoin,
   AntiJoinPresolvedRight,
   Aggregate,
+  AggregateOuterLookup,
   Output,
   Watch,
 }
@@ -90,9 +93,9 @@ let typeToParentField = {
   [TraceFrameType.MaybeExternalInput]: "externalInputs",
 }
 
-interface Frame {type:TraceFrameType};
-interface ProgramFrame extends Frame {transactions: TransactionFrame[]}
-interface TransactionFrame extends Frame {id:number, externalInputs:any[], inputs:any[]}
+export interface Frame {type:TraceFrameType};
+export interface ProgramFrame extends Frame {transactions: TransactionFrame[]}
+export interface TransactionFrame extends Frame {id:number, externalInputs:any[], inputs:any[]}
 
 export class Tracer {
   stack:any[] = [{type:TraceFrameType.Program, transactions: []}];
@@ -101,6 +104,8 @@ export class Tracer {
   outputsToInputs:any = {};
   eToChange:any = {};
   renderer:Renderer;
+  activeBlock = "";
+  tracker = new PerformanceTracker();
 
   constructor(public context:EvaluationContext, shouldDraw = true) {
     if(typeof window !== "undefined" && shouldDraw) {
@@ -120,6 +125,7 @@ export class Tracer {
 
   transaction(id:number) {
     this.stack.push({type:TraceFrameType.Transaction, id, externalInputs: [], inputs: []})
+    this.tracker.time("transaction");
   }
 
   frame(commits:Change[]) {
@@ -139,7 +145,9 @@ export class Tracer {
   }
 
   block(name:string) {
+    this.activeBlock = name;
     this.stack.push({type:TraceFrameType.Block, name, nodes: []})
+    this.tracker.block(name);
   }
 
   node(node:Runtime.Node, inputPrefix:Prefix) {
@@ -234,8 +242,10 @@ export class Tracer {
       parent[field].push(cur);
     }
 
+    if(cur.type === TraceFrameType.Block) this.tracker.blockEnd(cur.name);
     if(cur.type === TraceFrameType.Input) this._currentInput = undefined;
     if(cur.type === TraceFrameType.Transaction) {
+      this.tracker.timeEnd("transaction");
       let error = this.distinctCheck();
       this.draw();
     }
@@ -456,6 +466,8 @@ export class Tracer {
 
 export class NoopTracer extends Tracer {
 
+  activeBlock = "";
+
   constructor(public context:EvaluationContext) {
     super(context, false);
   }
@@ -463,7 +475,7 @@ export class NoopTracer extends Tracer {
   transaction(id:number) { }
   frame(commits:Change[]) { }
   input(input:Change) { }
-  block(name:string) { }
+  block(name:string) { this.activeBlock = name; }
   node(node:Runtime.Node, inputPrefix:Prefix) { }
   capturePrefix(prefix:Prefix) { }
   maybeOutput(change:Change) { }

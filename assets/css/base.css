@@ -1,4 +1,4 @@
-* { box-sizing: border-box; }
+* {box-sizing: border-box;}
 html, body, __root { height: 100%; }
 body { background: #f5f5f5; color: #555; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: column; margin:0; width: 100%; }
 
@@ -7,7 +7,8 @@ body { background: #f5f5f5; color: #555; font-family: Avenir, "Helvetica neue", 
 \******************************************************************************/
 
 row { display: flex; flex-direction: row; }
-column { display: flex; flex-direction: column; }
+column {display: flex;flex-direction: column;align-items: stretch;}
+
 spacer { display: flex; flex: 1; }
 
 text { display: inline-block; white-space: pre-wrap; }
@@ -18,8 +19,35 @@ text { display: inline-block; white-space: pre-wrap; }
 .button.inset:not(.disabled):hover { box-shadow: inset 0 0 1000px rgba(0, 0, 0, 0.05), inset 0 1px 1px rgba(0, 0, 0, 0.25); border-top-color: rgba(0, 0, 0, 0.2); }
 .button.inset:not(.disabled):active { box-shadow: inset 0 0 1000px rgba(0, 0, 0, 0.1), inset 0 2px 1px rgba(0, 0, 0, 0.25); border-top-color: rgba(0, 0, 0, 0.3); }
 
-.button.flat:not(.disabled):hover { background: rgba(0, 0, 0, 0.1); }
-.button.flat:not(.disabled):active { background: rgba(0, 0, 0, 0.2); }
+.button.flat:not(.disabled):hover { background: rgba(0, 0, 0, 0.05); }
+.button.flat:not(.disabled):active { background: rgba(0, 0, 0, 0.1); }
 
 .dark .button.flat:not(.disabled):hover { background: rgba(255, 255, 255, 0.1); }
 .dark .button.flat:not(.disabled):active { background: rgba(255, 255, 255, 0.2); }
+
+.ui-field-table {border-collapse: collapse;}
+.ui-field-table td {padding: 0;margin: 0;vertical-align: top; border: 1px solid #ccc;}
+.ui-field-table .ui-field-table-attribute {}
+.ui-field-table .ui-field-table-value-set {display: flex;flex-direction: column;}
+.ui-field-table .ui-field-table-cell { padding: 0 10; margin: 0; }
+.ui-field-table .ui-field-table-cell + .ui-field-table-cell { border-top: 1px solid #ccc; }
+
+.ui-field-table input.ui-field-table-cell {min-width:100%;font-size: 1em;font-weight: inherit;font-family: inherit;background: transparent;border: none;color: inherit;}
+.ui-field-table input::-webkit-input-placeholder { font-weight: 300; }
+.ui-field-table input.ui-field-table-attribute {padding-right: 0;}
+
+.ui-autocomplete { position: relative; flex: 0 0 auto; width: 200;}
+.ui-autocomplete-matches { position: absolute; top: 100%; width: 100%; flex: 0 0 auto; z-index: 5; background: white; border-top: 0px solid #f0f0f0; border-radius: 4px; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2); }
+.ui-autocomplete[open="true"] .ui-autocomplete-matches { border-top-width: 1px; }
+
+.ui-autocomplete-match { padding: 0 10; height: 0; overflow: hidden; }
+.ui-autocomplete[open="true"] .ui-autocomplete-match { padding: 0 10; height: 100%; overflow: hidden; }
+.ui-autocomplete-match:hover { background: #f9f9f9; }
+.ui-autocomplete-match:active { background: #f0f0f0; }
+
+/******************************************************************************\
+ * Shape                                                                      *
+\******************************************************************************/
+.shape-hexagon {position: relative;}
+.shape-hexagon > canvas {position: absolute;top: 0;left: 0;width: 100%;height: 100%;}
+.shape-hexagon > div { display: flex; flex-direction: column; justify-content: center; align-items: center; position: absolute; }

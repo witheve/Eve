@@ -94,6 +94,123 @@ test("Choose: 3 branches", (assert) => {
   assert.end();
 });
 
+test("Choose: 4 branches", (assert) => {
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, choose}) => {
+    let person = find("person");
+    let {boat} = person;
+    let [info] = choose(() => {
+      person.dog;
+      return "cool";
+    }, () => {
+      person.foo;
+      return "zomg";
+    }, () => {
+      boat.foo;
+      return "woah";
+    }, () => {
+      return "not cool";
+    });
+    return [
+      record("dog-less", {info})
+    ]
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "boat", 9],
+  ], [
+    [2, "tag", "dog-less", 1],
+    [2, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot"],
+  ], [
+    [2, "tag", "dog-less", 1, -1],
+    [2, "info", "not cool", 1, -1],
+    [3, "tag", "dog-less", 1],
+    [3, "info", "cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot", 0, -1],
+    [1, "foo", "woop"],
+  ], [
+    [3, "tag", "dog-less", 1, -1],
+    [3, "info", "cool", 1, -1],
+    [4, "tag", "dog-less", 1],
+    [4, "info", "zomg", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "foo", "woop", 0, -1],
+  ], [
+    [3, "tag", "dog-less", 1, -1],
+    [3, "info", "zomg", 1, -1],
+    [4, "tag", "dog-less", 1],
+    [4, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [9, "foo", "meep moop"],
+  ], [
+    [3, "tag", "dog-less", 1, -1],
+    [3, "info", "not cool", 1, -1],
+    [4, "tag", "dog-less", 1],
+    [4, "info", "woah", 1],
+  ])
+
+  verify(assert, prog, [
+    [9, "foo", "meep moop", 0, -1],
+  ], [
+    [3, "tag", "dog-less", 1, -1],
+    [3, "info", "woah", 1, -1],
+    [4, "tag", "dog-less", 1],
+    [4, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot"],
+  ], [
+    [3, "tag", "dog-less", 1, -1],
+    [3, "info", "not cool", 1, -1],
+    [4, "tag", "dog-less", 1],
+    [4, "info", "cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [5, "tag", "person"],
+    [5, "boat", 10],
+  ], [
+    [4, "tag", "dog-less", 1],
+    [4, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [5, "tag", "person", 0, -1],
+    [1, "tag", "person", 0, -1],
+  ], [
+    [4, "tag", "dog-less", 1, -1],
+    [4, "info", "not cool", 1, -1],
+    [6, "tag", "dog-less", 1, -1],
+    [6, "info", "cool", 1, -1],
+  ])
+
+  verify(assert, prog, [
+    [5, "tag", "person"],
+    [1, "tag", "person"],
+  ], [
+    [4, "tag", "dog-less", 1],
+    [4, "info", "not cool", 1],
+    [6, "tag", "dog-less", 1],
+    [6, "info", "cool", 1],
+  ])
+
+
+  assert.end();
+});
 
 // @TODO: Give this a better name when we figure out the specific issue.
 test("Choose: Busted partial identity", (assert) => {
@@ -230,6 +347,80 @@ test("Choose: moves only", (assert) => {
 
   assert.end();
 });
+
+test("Choose: post-filtering outer", (assert) => {
+  let prog = new Program("test");
+  prog.block("froofy", ({find, choose, record}) => {
+    let person = find("person");
+    let [display] = choose(() => person.display);
+    display.name == "Ferdinand";
+    return [record("result", {name: display.name})];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "display", 2],
+    [2, "name", "Jess"],
+    [3, "tag", "cat"],
+    [3, "display", 4],
+    [4, "name", "Ferdinand"],
+  ], []);
+  assert.end();
+});
+
+test("Choose: expression-only dynamic branch", (assert) => {
+  let prog = new Program("test");
+  prog.block("Choose non-static expression only.", ({find, choose, record}) => {
+    let guy = find("guy");
+    let {radness} = guy;
+    let [radometer] = choose(() => radness * 3); // This does not.
+    // let radometer = radness * 3; // This works
+    return [guy.add("radometer", radometer)];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "guy"],
+    [1, "radness", 1],
+  ], [
+    [1, "radometer", 3, 1]
+  ]);
+  assert.end();
+});
+
+test("Choose: filter and expression-only dynamic branches", (assert) => {
+  let prog = new Program("test");
+  prog.block("Choose non-static expression only.", ({find, choose, record}) => {
+    let guy = find("guy");
+    let {radness} = guy;
+    // We need to adjust the scale since radness is roughly logarithmic.
+    let [radometer] = choose(
+      () => { radness < 2; return radness; },
+      () => { radness < 4; return radness * 2; },
+      () => radness * 3
+    );
+    // let radometer = radness * 3;
+    return [guy.add("radometer", radometer)];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "guy"],
+    [1, "radness", 0],
+    [2, "tag", "guy"],
+    [2, "radness", 1],
+    [3, "tag", "guy"],
+    [3, "radness", 2],
+    [4, "tag", "guy"],
+    [4, "radness", 4],
+  ], [
+    [1, "radometer", 0, 1],
+    [2, "radometer", 1, 1],
+    [3, "radometer", 4, 1],
+    [4, "radometer", 12, 1]
+  ]);
+  assert.end();
+});
+
+
 
 let programs = {
   "1 static": () => {

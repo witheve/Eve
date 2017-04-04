@@ -1,17 +1,17 @@
-import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
 
-interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
+export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
 
-class HTMLWatcher extends DOMWatcher<Instance> {
+export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElement(tagname as string);
-    elem.setAttribute("instance", (global as any).GlobalInterner.get(id));
-    elem.setAttribute("element", (global as any).GlobalInterner.get(element));
+    elem.setAttribute("instance", ""+maybeIntern(id));
+    elem.setAttribute("element", ""+maybeIntern(element));
     elem.__element = element;
     elem.__styles = [];
     return elem;
@@ -26,17 +26,49 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
   addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
     // @TODO: Error checking to ensure we don't double-set attributes.
-    instance.setAttribute(attribute as string, value as string);
+    if(attribute == "value") {
+      if(instance.classList.contains("html-autosize-input") && instance instanceof HTMLInputElement) {
+        instance.size = (instance.value || "").length || 1;
+      }
+      (instance as HTMLInputElement).value = ""+maybeIntern(value);
+    } else if(attribute == "tag") {
+      if(value === "html/autosize-input" && instance instanceof HTMLInputElement) {
+        setImmediate(() => instance.size = (instance.value || "").length || 1);
+      } else if(value === "html/trigger-focus" && instance instanceof HTMLInputElement) {
+        setImmediate(() => instance.focus());
+      } else {
+        instance.setAttribute(attribute, ""+maybeIntern(value));
+      }
+    } else {
+      instance.setAttribute(attribute as string, ""+maybeIntern(value));
+    }
   }
 
   removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
     // @TODO: Error checking to ensure we don't double-remove attributes or remove the wrong value.
     instance.removeAttribute(attribute as string);
+    if(attribute === "value") {
+      let input = instance as HTMLInputElement;
+      if(input.value === value) input.value = "";
+    }
   }
 
+  sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
+
   setup() {
+    if(typeof window === "undefined") return;
     this.tagPrefix = "html"; // @FIXME: hacky, due to inheritance chain evaluation order.
     super.setup();
+
+    this.program
+      .block("All html elements add their tags as classes", ({find, lib:{string}, record}) => {
+        let element = find("html/element");
+        element.tag != "html/element"
+        let klass = string.replace(element.tag, "/", "-");
+        return [
+          element.add("class", klass)
+        ];
+      });
 
     window.addEventListener("click", (event) => {
       let {target} = event;
@@ -60,6 +92,77 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
       this._sendEvent(eavs);
     });
+
+    window.addEventListener("input", (event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        if(target.classList.contains("html-autosize-input")) {
+          target.size = target.value.length || 1;
+        }
+        let {sentInputValues} = this;
+        if(!sentInputValues[elementId]) {
+          sentInputValues[elementId] = [];
+        }
+        sentInputValues[elementId].push(target.value);
+        let eventId = uuid();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event/change"],
+          [eventId, "element", elementId],
+          [eventId, "value", target.value]
+        ];
+        this._sendEvent(eavs);
+      }
+    });
+
+    window.addEventListener("focus", (event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        let eventId = uuid();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event/focus"],
+          [eventId, "element", elementId]
+        ];
+        if(target.value !== undefined) eavs.push([eventId, "value", target.value]);
+        this._sendEvent(eavs);
+      }
+    }, true);
+
+    window.addEventListener("blur", (event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        let eventId = uuid();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event/blur"],
+          [eventId, "element", elementId]
+        ];
+        if(target.value !== undefined) eavs.push([eventId, "value", target.value]);
+        this._sendEvent(eavs);
+      }
+    }, true);
+
+    this.program
+      .commit("Remove input-related events.", ({find, choose}) => {
+        let [event] = choose(
+          () => find("html/event/change"),
+          () => find("html/event/focus"),
+          () => find("html/event/blur")
+        );
+        event.tag;
+        return [event.remove()];
+      })
+      .block("Inputs with an initial but no value use the initial.", ({find, choose}) => {
+        let input = find("html/element", {tagname: "input"});
+        let [value] = choose(() => input.value, () => input.initial);
+        return [input.add("value", value)]
+      })
+      .commit("Apply input value changes.", ({find}) => {
+        let {element, value} = find("html/event/change");
+        return [element.remove("value").add("value", value)];
+      });
+
 
     this.program
       .watch("setup onmouseenter", ({find, record}) => {
@@ -113,13 +216,13 @@ class HTMLWatcher extends DOMWatcher<Instance> {
       .commit("Remove mouseenter events", ({find}) => {
         let event = find("html/event/mouseenter");
         return [
-          event.remove("tag"),
+          event.remove(),
         ];
       })
       .commit("Remove mouseleave events", ({find}) => {
         let event = find("html/event/mouseleave");
         return [
-          event.remove("tag"),
+          event.remove(),
         ];
       });
   }

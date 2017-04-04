@@ -148,6 +148,57 @@ test("simple division", (assert) => {
   assert.end();
 });
 
+test("static equality filters expressions", (assert) => {
+  let prog = new Program("Automatic Teacher's Assistant");
+  prog.block("Auto TA addition", ({find, record, lib}) => {
+    let addition = find("addition");
+    1 == addition.a + addition.b;
+    return [record("success", {addition})];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "addition"],
+    [1, "a", 7],
+    [1, "b", 13],
+
+    [2, "tag", "addition"],
+    [2, "a", 3],
+    [2, "b", -2],
+  ], [
+    ["A", "tag", "success", 1],
+    ["A", "addition", 2, 1]
+  ])
+
+  assert.end();
+});
+
+test("dynamic equality filters expressions", (assert) => {
+  let prog = new Program("Automatic Teacher's Assistant");
+  prog.block("Auto TA addition", ({find, record, lib}) => {
+    let addition = find("addition");
+    addition.c == addition.a + addition.b;
+    return [record("success", {addition})];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "addition"],
+    [1, "a", 7],
+    [1, "b", 13],
+    [1, "c", 1],
+
+    [2, "tag", "addition"],
+    [2, "a", 3],
+    [2, "b", -2],
+    [2, "c", 1],
+  ], [
+    ["Z", "tag", "success", 1],
+    ["Z", "addition", 2, 1]
+  ])
+
+  assert.end();
+});
+
+
 
 test("simple recursion", (assert) => {
   // -----------------------------------------------------
@@ -553,6 +604,66 @@ test("commit, remove, and recursion", (assert) => {
     [3, "tag", "click", 0, -1],
     [3, "tag", "direct-target", 0, -1],
     [1, "count", 2, 0],
+  ])
+
+  assert.end();
+});
+
+
+test("Remove: free AV", (assert) => {
+
+  let prog = new Program("test");
+  prog.commit("coolness", ({find, not, record, choose}) => {
+    let person = find("person");
+    return [
+      person.remove()
+    ]
+  })
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "chris"],
+    [1, "age", 30],
+  ], [
+    [1, "tag", "person", 0, -1],
+    [1, "name", "chris", 0, -1],
+    [1, "age", 30, 0, -1],
+  ])
+
+  assert.end();
+});
+
+
+test("Reference: arbitrary refs act like records", (assert) => {
+
+  let prog = new Program("test");
+
+  prog.commit("coolness", ({find, not, record, union}) => {
+    let person = find("person");
+    let [thing] = union(() => {
+      return find("person");
+    }, () => {
+      return "foo";
+    })
+    return [
+      thing.remove()
+    ]
+  })
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "chris"],
+    [1, "age", 30],
+    ["foo", "tag", "person"],
+    ["foo", "name", "chris"],
+    ["foo", "age", 30],
+  ], [
+    [1, "tag", "person", 0, -1],
+    [1, "name", "chris", 0, -1],
+    [1, "age", 30, 0, -1],
+    ["foo", "tag", "person", 0, -1],
+    ["foo", "name", "chris", 0, -1],
+    ["foo", "age", 30, 0, -1],
   ])
 
   assert.end();

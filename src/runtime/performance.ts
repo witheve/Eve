@@ -7,7 +7,7 @@ import {v4 as uuid} from "node-uuid";
 var globalsToTrack = ["transaction"];
 var propertiesToTrack = ["block", "PresolveCheck", "GenericJoin"];
 
-type TimeReturn = number;
+export type TimeReturn = number;
 
 export class PerformanceTracker {
 

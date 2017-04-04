@@ -1,9 +1,11 @@
+import * as path from "path";
 export {RawValue, RawEAV, RawEAVC} from "../runtime/runtime";
-import {ID, RawValue, RawEAV, Change, createArray, ExportHandler} from "../runtime/runtime";
+import {ID, GlobalInterner, RawValue, RawEAV, RawEAVC, Change, createArray, ExportHandler} from "../runtime/runtime";
 export {Program} from "../runtime/dsl2";
 import {Program, LinearFlowFunction} from "../runtime/dsl2";
 import * as glob from "glob";
 import * as fs from "fs";
+import {v4 as uuid} from "node-uuid";
 
 //------------------------------------------------------------------------------
 // Watcher
@@ -42,13 +44,13 @@ export class Watcher {
 // Exporter
 //------------------------------------------------------------------------------
 
-interface Map<V> {[key:number]: V};
+export interface Map<V> {[key:number]: V};
 export interface RawMap<V> {[key:string]: V, [key:number]: V};
 export interface RawRecord extends RawMap<RawValue> {}
 
-interface Diffs<V> {adds: V, removes: V};
-interface EAVDiffs extends Diffs<RawEAV[]> {}
-interface ObjectDiffs<T extends RawRecord> extends Diffs<RawMap<T>> {}
+export interface Diffs<V> {adds: V, removes: V};
+export interface EAVDiffs extends Diffs<RawEAV[]> {}
+export interface ObjectDiffs<T extends RawRecord> extends Diffs<RawMap<T>> {}
 
 export type DiffConsumer = (diffs:EAVDiffs) => void;
 export type ObjectConsumer<T extends RawRecord> = (diffs:ObjectDiffs<T>) => void;
@@ -132,21 +134,116 @@ export class Exporter {
 }
 
 //------------------------------------------------------------------------------
+// Convenience Diff Handlers
+//------------------------------------------------------------------------------
+
+export function maybeIntern(value?:RawValue):ID|RawValue|undefined {
+  if(value === undefined) return value;
+  return (""+value).indexOf("|") === -1 ? value : GlobalInterner.get(value);
+}
+
+export function forwardDiffs(destination:Program, name:string = "Unnamed", debug = false) {
+  return (diffs:EAVDiffs) => {
+    let eavs:RawEAVC[] = [];
+    for(let [e, a, v] of diffs.removes) {
+      eavs.push([e, a, v, -1]);
+    }
+    for(let [e, a, v] of diffs.adds) {
+      eavs.push([e, a, v, 1]);
+    }
+    if(eavs.length) {
+      if(debug) {
+        console.log("FWD", name, "=>", destination.name);
+        console.log(eavs.map((c) => `[${c.map(maybeIntern).join(", ")}]`).join("\n"));
+      }
+      destination.inputEavs(eavs);
+    }
+  };
+}
+
+//--------------------------------------------------------------------
+// Watcher / Program Utils
+//--------------------------------------------------------------------
+
+export function createId() {
+  return "|" + uuid();
+}
+
+export function isRawValue(x:any): x is RawValue {
+  return x !== undefined && (typeof x === "string" || typeof x === "number");
+}
+
+export function isRawValueArray(x:any): x is RawValue[] {
+  if(x && x.constructor === Array) {
+    for(let value of x) {
+      if(!isRawValue(value)) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+export function isRawEAVArray(x:any): x is RawEAV[] {
+  if(x && x.constructor === Array) {
+    for(let value of x) {
+      if(!isRawValueArray(value)) return false;
+      if(value.length !== 3) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+
+export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
+export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
+  for(let attr in record) {
+    let value = record[attr];
+    if(isRawValue(value)) {
+      eavs.push([id, attr, value]);
+
+    } else if(isRawValueArray(value)) {
+      // We have a set of scalars
+      for(let val of value) eavs.push([id, attr, val]);
+
+    } else if(isRawEAVArray(value)) {
+      // We have a single nested sub-object (i.e. a set of EAVs).
+      let childEavs = value;
+      let [childId] = childEavs[0];
+      eavs.push([id, attr, childId]);
+      for(let childEav of childEavs) eavs.push(childEav);
+
+    } else {
+      // We have a set of nested sub-objects.
+      for(let childEavs of value) {
+        let [childId] = childEavs[0];
+        eavs.push([id, attr, childId]);
+        for(let childEav of childEavs) eavs.push(childEav);
+      }
+    }
+  }
+
+  return eavs;
+}
+
+
+//------------------------------------------------------------------------------
 // Initialization / Packaging
 //------------------------------------------------------------------------------
 
 const WATCHER_PATHS = [
-  __dirname + "/**/*.js"
+  __dirname
   // @TODO: Import watchers from node_modules with the appropriate flag in their package.jsons
   // @TODO: Import watchers from the binary-local `watchers` directory.
   // @NOTE: We normalize backslash to forwardslash to make glob happy.
 ].map((path) => path.replace(new RegExp("\\\\", "g"), "/"));
 
-export function findWatchers() {
+export function findWatchers(watcherPaths:string[] = WATCHER_PATHS, relative = false) {
   let watcherFiles:string[] = [];
-  for(let watcherPath of WATCHER_PATHS) {
-    for(let filepath of glob.sync(watcherPath)) {
+  for(let watcherPath of watcherPaths) {
+    for(let filepath of glob.sync(watcherPath + "/**/*.js")) {
       if(filepath === __filename) continue;
+      if(relative) filepath = path.relative(watcherPath, filepath);
       watcherFiles.push(filepath);
     }
   }

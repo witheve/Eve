@@ -1,4 +1,4 @@
-import {makeFunction, RawValue} from "./runtime";
+import {makeFunction, RawValue, AggregateNode} from "./runtime";
 
 //--------------------------------------------------------------------
 // Comparisons
@@ -197,6 +197,75 @@ makeFunction({
   }
 });
 
+// makeFunction({
+//   name: "math/range",
+//   args: {start: "number", stop: "number"},
+//   returns: {result: "string"},
+//   apply: (start:number, stop:number) => {
+//     if(start > stop) {
+//       [stop, start] = [start, stop];
+//     }
+
+//     for(let ix = start; ix < stop; ix += 1) {
+//     }
+//     return [a.toFixed(b)];
+//   }
+// });
+
+//--------------------------------------------------------------------
+// String
+//--------------------------------------------------------------------
+
+makeFunction({
+  name: "string/replace",
+  args: {text: "string", replace: "string", with: "string"},
+  returns: {result: "string"},
+  apply: function(text:string, replace:string, _with:string) {
+    let result = text.split(replace).join(_with);
+    return [result];
+  }
+});
+
+makeFunction({
+  name: "string/get",
+  args: {text: "string", at: "number"},
+  returns: {result: "string"},
+  apply: function(text:string, at:number) {
+    if(at > text.length) return;
+    return [text[at - 1]];
+  }
+});
+
+makeFunction({
+  name: "string/uppercase",
+  args: {text: "string"},
+  returns: {result: "string"},
+  apply: function(text:string) {
+    return [text.toLocaleUpperCase()];
+  }
+});
+
+makeFunction({
+  name: "string/lowercase",
+  args: {text: "string"},
+  returns: {result: "string"},
+  apply: function(text:string) {
+    return [text.toLocaleLowerCase()];
+  }
+});
+
+makeFunction({
+  name: "string/index_of",
+  args: {text: "string", substring: "string"},
+  returns: {result: "number"},
+  apply: function(text:string, substring:string) {
+    let ix = (""+text).indexOf(substring);
+    if(ix == -1) return;
+    return [ix];
+  }
+});
+
+
 //--------------------------------------------------------------------
 // Random
 //--------------------------------------------------------------------
@@ -244,3 +313,25 @@ makeFunction({
     return [values.join("")];
   }
 });
+
+//------------------------------------------------------------------------
+// Aggregates
+//------------------------------------------------------------------------
+
+export type SumAggregateState = {total:number};
+export class SumAggregate extends AggregateNode {
+  add(state:SumAggregateState, resolved:RawValue[]):any {
+    state.total += resolved[0] as number;
+    return state;
+  }
+  remove(state:SumAggregateState, resolved:RawValue[]):any {
+    state.total -= resolved[0] as number;
+    return state;
+  }
+  getResult(state:SumAggregateState):RawValue {
+    return state.total;
+  }
+  newResultState():SumAggregateState {
+    return {total: 0};
+  };
+}
