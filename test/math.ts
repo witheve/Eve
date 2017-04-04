@@ -228,10 +228,9 @@ let Fix_list : valueTest[]  = [
 testSingleExpressionByList(Fix_list );
 
 
-test("Test that string concatenation is still working after NaN change.", (assert) => {
+test("Test that string concatenation with plus does not work.", (assert) => {
   let expected = {
     insert: [
-      ["a", "result", "Test Testy"],
     ],
     remove: [],
   };
@@ -241,6 +240,92 @@ test("Test that string concatenation is still working after NaN change.", (asser
     search
       a = "Test "
       b = "Testy"
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Test that that plus with string numbers filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = "1"
+      b = "1"
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Test that plus with string + number filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = "1"
+      b = 1
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Test that plus with number + string filters..", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = 1
+      b = "1"
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+
+test("Test that that plus with number + number does work.", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "result", "2"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = 1
+      b = 1
       x =  a + b
 
     bind
@@ -365,15 +450,87 @@ test("Test gaussian seed", (assert) => {
   evaluate(assert, expected, `
     ~~~
     search
-      g1 = gaussian[seed:0, σ:1.0, µ:0.0]
-      g2 = gaussian[seed:0, σ:1.0, µ:0.0]
-      g3 = gaussian[seed:1, σ:1.0, µ:0.0]
+      g1 = gaussian[seed:0, stdev:1.0, mean:0.0]
+      g2 = gaussian[seed:0, stdev:1.0, mean:0.0]
+      g3 = gaussian[seed:1, stdev:1.0, mean:0.0]
       same-seed = if g1 = g2 then "true" else "false"
       different-seed = if g1 = g3 then "true" else "false"
 
     bind
       [same-seed]
       [different-seed]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Func without input attributes map (PI) with invalid attribute filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = pi[invalid-attribute:0]
+    bind
+      [x:x]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Func with input attributes map (Pow) with invalid attribute filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = pow[ value:2 by:3 invalid-attribute:0]
+    bind
+      [x:x]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Func input attributes map and Return Mapping (Convert) invalid attribute filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+      search
+        convert[value:"1" to:"number" converted:x invalid-attribute:0]
+      commit @view
+        [#value value:"{{x}}"]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Func using a #tag attribute filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = pi[ #test ]
+    bind
+      [x:x]
     ~~~
   `);
   assert.end();

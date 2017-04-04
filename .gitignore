@@ -45,6 +45,7 @@ lua_modules/
 dist/
 build/
 node_modules/
+.idea
 
 experimental/build/continuation_templates.h
 experimental/build/eve

@@ -65,13 +65,12 @@ function degreesToRadians(degrees:number){
 }
 
 class Add extends TotalFunctionConstraint {
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [this.getReturnValue(args)];
-  }
-
   getReturnValue(args) {
-    return args[0] + args[1];
+    if ((typeof(args[0]) === "number") && (typeof(args[1]) === "number")) {
+      return args[0] + args[1];
+    } else {
+      return NaN
+    }
   }
 }
 
@@ -300,8 +299,8 @@ class Random extends TotalFunctionConstraint {
 class Gaussian extends TotalFunctionConstraint {
   static AttributeMapping = {
     "seed": 0,
-    "σ": 1,
-    "μ": 2
+    "stdev": 1,
+    "mean": 2
   }
 
   static cache = {};

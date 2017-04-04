@@ -428,14 +428,15 @@ function buildExpressions(block, context, expressions, outputScans) {
         return;
       }
       for(let attribute of expression.record.attributes) {
-        let ix = impl.AttributeMapping[attribute.attribute];
-        if(ix !== undefined) {
+        let ix; 
+        if(impl.AttributeMapping && (ix = impl.AttributeMapping[attribute.attribute]) !== undefined) {
           args[ix] = context.getValue(attribute.value);
         } else if(impl.ReturnMapping && (ix = impl.ReturnMapping[attribute.attribute]) !== undefined) {
           results[ix] = attribute.value;
         } else {
-          // @TODO: error - unknown arg/return for the function call
+          context.errors.push(errors.unrecognisedFunctionAttribute(block , expression,attribute));
         }
+
       }
       let resultIx = 0;
       for(let result of results) {

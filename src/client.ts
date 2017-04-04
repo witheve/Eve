@@ -324,7 +324,8 @@ export class EveClient {
   }
 
   _css(data) {
-    document.getElementById("app-styles").innerHTML = data.css;
+    let appIframe = document.getElementById('app-preview-iframe');
+    (<any>appIframe).contentWindow.document.getElementById("app-styles").innerHTML = data.css;
   }
 
   _parse(data) {
