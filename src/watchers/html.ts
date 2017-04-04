@@ -56,6 +56,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
   sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
 
   setup() {
+    if(typeof window === "undefined") return;
     this.tagPrefix = "html"; // @FIXME: hacky, due to inheritance chain evaluation order.
     super.setup();
 
