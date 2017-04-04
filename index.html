@@ -4,35 +4,22 @@
     <link rel="stylesheet" type="text/css" href="assets/css/codemirror.css">
     <link rel="stylesheet" type="text/css" href="assets/css/simplescrollbars.css">
     <link rel="stylesheet" type="text/css" href="assets/css/ionicons.min.css">
-    <style>
-      * { box-sizing:border-box; }
-      body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: row; margin:0; width: 100%; }
-      .__root { display: flex; flex-direction: column; align-self: stretch; }
-      .__root.ide-root { order: 1; flex: 0 1 auto; }
-      iframe#app-preview-iframe { order: 2; flex: 1 1 auto; color: #555; }
-      .__root.application-root { order: 2; flex: 1 1 auto; color: #555; }
-      .application-container { display: flex; flex-direction: column; flex: 1; }
-      .program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; display:flex; }
 
-    </style>
+    <style id="app-styles"></style>
 
-    <link rel="stylesheet" type="text/css" href="assets/css/ide.css">
+    <link rel="stylesheet" type="text/css" href="assets/css/base.css">
+    <link rel="stylesheet" type="text/css" href="assets/css/trace.css">
     <link href="assets/favicon.png" rel="icon" type="image/png" />
   </head>
   <body>
-    <script type="text/javascript" src="build/workspaces.js"></script>
-    <script type="text/javascript" src="build/src/uuid.js"></script>
-    <script type="text/javascript" src="build/src/codemirror.js"></script>
-    <script type="text/javascript" src="build/src/css.js"></script>
-    <script type="text/javascript" src="build/src/simplescrollbars.js"></script>
-    <script type="text/javascript" src="build/src/annotatescrollbar.js"></script>
-    <script type="text/javascript" src="build/src/commonmark.js"></script>
-    <script type="text/javascript" src="build/src/microReact.js"></script>
-    <script type="text/javascript" src="build/src/system.js"></script>
-    <script type="text/javascript" src="build/src/systemJSConfig.js"></script>
+    <script type="text/javascript" src="build/watchers.js"></script>
+    <script type="text/javascript" src="src/system.js"></script>
+    <script type="text/javascript" src="src/systemJSConfig.js"></script>
+
     <script>
-      SystemJS.import("client");
+      SystemJS.import("/build/src/bootstrap");
     </script>
+
     <!-- PRODUCTION ANALYTICS -->
   </body>
 </html>

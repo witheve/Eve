@@ -1,209 +1,142 @@
 //---------------------------------------------------------------------
 // Performance
 //---------------------------------------------------------------------
+import {v4 as uuid} from "node-uuid";
+// import {Program} from "./dsl2";
 
-export class NoopPerformanceTracker {
-  storeTime: number;
-  storeCalls: number;
+var globalsToTrack = ["transaction"];
+var propertiesToTrack = ["block", "PresolveCheck", "GenericJoin"];
 
-  lookupTime: number;
-  lookupCalls: number;
+export type TimeReturn = number;
 
-  blockTime: any;
-  blockTimeMax: any;
-  blockTimeMin: any;
-  blockCalls: any;
+export class PerformanceTracker {
 
-  sendTime: number;
-  sendCalls: number;
+  blocks:{[block:string]: {
+    times: {[property:string]: number},
+    counts: {[property:string]: number},
+  }};
+  activeBlock:string;
+  activeProperties:{[property:string]: TimeReturn};
+  times: {[property:string]: number};
+  counts: {[property:string]: number};
 
-  fixpointTime: number;
-  fixpointCalls: number;
+  now: () => TimeReturn;
+  elapsed: (start:TimeReturn) => TimeReturn;
 
-  blockCheckTime: number;
-  blockCheckCalls: number;
-
-  time: (start?) => number | number[] | string;
-
-  constructor() {
-    this.time = () => 0;
+  _makePropertyHolder(props = propertiesToTrack) {
+    let neue:any = {};
+    for(let property of props) {
+      neue[property] = 0;
+    }
+    return neue;
   }
-  reset() { }
-  lookup(start) { }
-  store(start) { }
-  block(name, start) { }
-  send(start) { }
-  blockCheck(start) { }
-  fixpoint(start) { }
-  asObject(blockMap: Object): any {}
-  report() { }
-}
-
-export class PerformanceTracker extends NoopPerformanceTracker {
-
-  time: (start?) => number | number[] | string;
 
   constructor() {
-    super();
     this.reset();
-    this.time = time;
+    this.now = now;
+    this.elapsed = elapsed;
   }
 
   reset() {
-    this.storeTime = 0;
-    this.storeCalls = 0;
-    this.lookupTime = 0;
-    this.lookupCalls = 0;
-    this.sendTime = 0;
-    this.sendCalls = 0;
-    this.fixpointTime = 0;
-    this.fixpointCalls = 0;
-    this.blockCheckTime = 0;
-    this.blockCheckCalls = 0;
-    this.blockTime = {};
-    this.blockTimeMax = {};
-    this.blockTimeMin = {};
-    this.blockCalls = {};
+    this.activeBlock = "";
+    this.activeProperties = {};
+    this.times = this._makePropertyHolder(globalsToTrack);
+    this.counts = this._makePropertyHolder(globalsToTrack);
+    this.blocks = {};
   }
 
-  lookup(start) {
-    this.lookupTime += time(start) as number;
-    this.lookupCalls++;
-  }
-
-  store(start) {
-    this.storeTime += time(start) as number;
-    this.storeCalls++;
-  }
-
-  block(name, start) {
-    if(this.blockTime[name] === undefined) {
-      this.blockTime[name] = 0;
-      this.blockCalls[name] = 0;
-      this.blockTimeMax[name] = -Infinity;
-      this.blockTimeMin[name] = Infinity;
+  block(name:string) {
+    let {blocks} = this;
+    let found = blocks[name];
+    if(!found) {
+      found = blocks[name] = {counts: this._makePropertyHolder(), times: this._makePropertyHolder()};
     }
-    let total = time(start) as number;
-    this.blockTime[name] += total;
-    this.blockCalls[name]++;
-    if(total > this.blockTimeMax[name]) {
-      this.blockTimeMax[name] = total;
-    }
-    if(total < this.blockTimeMin[name]) {
-      this.blockTimeMin[name] = total;
-    }
+    this.activeBlock = name;
+    this.activeProperties["block"] = this.now();
+    found.counts["block"]++;
   }
 
-  send(start) {
-    this.sendTime += time(start) as number;
-    this.sendCalls++;
+  blockEnd(name:string) {
+    let {blocks, activeBlock} = this;
+    blocks[activeBlock].times["block"] += this.elapsed(this.activeProperties["block"])
+    this.activeBlock = "";
   }
 
-  blockCheck(start) {
-    this.blockCheckTime += time(start) as number;
-    this.blockCheckCalls++;
+  blockTime(property:string) {
+    let {blocks, activeBlock} = this;
+    let found = blocks[activeBlock];
+    this.activeProperties[property] = this.now();
+    found.counts[property]++;
   }
 
-  fixpoint(start) {
-    this.fixpointTime += time(start) as number;
-    this.fixpointCalls++;
+  blockTimeEnd(property:string) {
+    let {blocks, activeBlock} = this;
+    let found = blocks[activeBlock];
+    found.times[property] += this.elapsed(this.activeProperties[property]);
   }
 
-  asObject(blockMap: Object) {
-    let info = {};
-    let blockInfo = {};
-    let blocks = Object.keys(this.blockTime);
-    blocks.sort((a,b) => {
-     return this.blockTime[b] - this.blockTime[a];
-    });
-    for(let name of blocks) {
-      if(!blockMap[name]) continue;
-      let time = this.blockTime[name];
-      let calls = this.blockCalls[name];
-      let max = this.blockTimeMax[name];
-      let min = this.blockTimeMin[name];
-      let avg = time / calls;
-      let color = avg > 5 ? "red" : (avg > 1 ? "orange" : "green");
-      let fixedpointPercent = (time * 100 / this.fixpointTime);
-      blockInfo[name] = {
-        time, calls, min, max, avg, color, percentFixpoint: fixedpointPercent
-      }
-    }
-    let fixpoint = {
-      time: this.fixpointTime,
-      count: this.fixpointCalls,
-      avg: this.fixpointTime / this.fixpointCalls,
-    }
-    return {fixpoint, blocks: blockInfo};
+  time(property:string) {
+    let {counts} = this;
+    this.activeProperties[property] = this.now();
+    counts[property]++;
+  }
+  timeEnd(property:string) {
+    let {times} = this;
+    times[property] += this.elapsed(this.activeProperties[property]);
   }
 
-  report() {
-    console.log("------------------ Performance --------------------------")
-    console.log("%cFixpoint", "font-size:14pt; margin:10px 0;");
-    console.log("");
-    console.log(`    Time: ${this.fixpointTime}`)
-    console.log(`    Count: ${this.fixpointCalls}`)
-    console.log(`    Average time: ${this.fixpointTime / this.fixpointCalls}`)
-    console.log("");
-    console.log("%cBlocks", "font-size:16pt;");
-    console.log("");
-    let blocks = Object.keys(this.blockTime);
-    blocks.sort((a,b) => {
-     return this.blockTime[b] - this.blockTime[a];
-    });
-    for(let name of blocks) {
-      let time = this.blockTime[name];
-      let calls = this.blockCalls[name];
-      let max = this.blockTimeMax[name];
-      let min = this.blockTimeMin[name];
-      let avg = time / calls;
-      let color = avg > 5 ? "red" : (avg > 1 ? "orange" : "green");
-      console.log(`    %c${name.substring(0,40)}`, "font-weight:bold;");
-      console.log(`        Time: ${time.toFixed(4)}`);
-      console.log(`        Calls: ${calls}`);
-      console.log(`        Max: ${max.toFixed(4)}`);
-      console.log(`        Min: ${min.toFixed(4)}`);
-      console.log(`        Average: %c${avg.toFixed(4)}`, `color:${color};`);
-      console.log(`        Fixpoint: %c${(time * 100 / this.fixpointTime).toFixed(1)}%`, `color:${color};`);
-      console.log("");
-    }
-    console.log("");
-    console.log("Block check")
-    console.log("");
-    console.log(`    Time: ${this.blockCheckTime}`)
-    console.log(`    Count: ${this.blockCheckCalls}`)
-    console.log(`    Average time: ${this.blockCheckTime / this.blockCheckCalls}`)
-    console.log("");
-    console.log("Lookup")
-    console.log("");
-    console.log(`    Time: ${this.lookupTime}`)
-    console.log(`    Count: ${this.lookupCalls}`)
-    console.log(`    Average time: ${this.lookupTime / this.lookupCalls}`)
-    console.log("");
-    console.log("Store")
-    console.log("");
-    console.log(`    Time: ${this.storeTime}`)
-    console.log(`    Count: ${this.storeCalls}`)
-    console.log(`    Average store: ${this.storeTime / this.storeCalls}`)
-    console.log("");
-    console.log("send");
-    console.log("");
-    console.log(`    Time: ${this.sendTime}`)
-    console.log(`    Count: ${this.sendCalls}`)
-    console.log(`    Average time: ${this.sendTime / this.sendCalls}`)
+  serialize() {
+    return JSON.stringify({
+      times: this.times,
+      counts: this.counts,
+      blocks: this.blocks
+    })
   }
 }
 
-export var time;
+export class NoopPerformanceTracker extends PerformanceTracker {
+  blocks:{[block:string]: {
+    times: {[property:string]: number},
+    counts: {[property:string]: number},
+  }};
+  times: {[property:string]: number};
+  counts: {[property:string]: number};
+
+  now: () => TimeReturn;
+  elapsed: (start:TimeReturn) => TimeReturn;
+
+  constructor() {
+    super();
+    this.now = () => 0;
+    this.elapsed = (start:any) => 0;
+  }
+  reset() { }
+
+  time(property:string) {}
+  timeEnd(property:string) {}
+
+  block(name:string) {  this.activeBlock = name; }
+  blockEnd(name:string) { this.activeBlock = "";  }
+
+  blockTime(property:string) {}
+  blockTimeEnd(property:string) {}
+}
+
+export var now: () => any;
+export var elapsed: (start:any) => any;
 if(global.process) {
-  time = function(start?): number | number[] | string {
-    if ( !start ) return process.hrtime();
+  now = function(start?): any {
+    return process.hrtime();
+  }
+  elapsed = function(start:any): any {
     let end = process.hrtime(start);
-    return ((end[0]*1000) + (end[1]/1000000)).toFixed(3);
+    return ((end[0]*1000) + (end[1]/1000000));
   }
 } else {
-  time = function(start?): number | number[] | string {
-    if ( !start ) return performance.now();
+  now = function(start?): any {
+    return performance.now();
+  }
+  elapsed = function(start:any): any {
     let end = performance.now();
     return end - start;
   }

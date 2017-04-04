@@ -1,0 +1,146 @@
+# Eve Code as records
+
+Translate `#compiler/record` into scans.
+
+```
+search @compiler
+  transform = [#compiler/transform scans: scan]
+  scan = [#compiler/record attributes scopes not(variable)]
+  lookup[record: attributes, attribute: a, value: v]
+bind @compiler
+  var = [#compiler/variable scan]
+  transform.scans += [#compiler/scan scan e:var, a, v, scopes]
+```
+
+```
+search @compiler
+  transform = [#compiler/transform scans: scan]
+  scan = [#compiler/record attributes scopes variable]
+  lookup[record: attributes, attribute: a, value: v]
+bind @compiler
+  transform.scans += [#compiler/scan scan e:variable, a, v, scopes]
+```
+
+Translate `#compiler/record` into insert actions.
+
+```
+search @compiler
+  transform = [#compiler/transform binds: binding]
+  binding = [#compiler/record attributes scopes variable]
+  lookup[record: attributes, attribute: a, value: v]
+  index = sort[value: a per: binding]
+bind @compiler
+  transform.expressions += [#compiler/expression binding operation:"generateId" | args: [index, v] results: [index:1, v: variable]]
+  transform.binds += [#compiler/insert binding e:variable, a, v, scopes]
+```
+
+```
+search @compiler
+  transform = [#compiler/transform binds: binding]
+  binding = [#compiler/record attributes scopes not(variable)]
+  lookup[record: attributes, attribute: a, value: v]
+  index = sort[value: a per: binding]
+bind @compiler
+  var = [#compiler/variable binding]
+  transform.expressions += [#compiler/expression binding operation:"generateId" | args: [index, v] results: [index:1, v: var]]
+  transform.binds += [#compiler/insert binding e:var, a, v, scopes]
+```
+
+Draw a transform
+
+```
+search @compiler
+  transform = [#compiler/transform name description]
+bind @browser
+  [#div class:"transform" transform children:
+    [#div class:"name" text: name]
+    [#div class:"description" text: description]
+    [#div #transform-code transform]
+    [#div text: "into"]
+    [#div #transform-result transform]]
+```
+
+```
+search @compiler @browser
+  parent = [#transform-code transform: [scans]]
+  scans = [#compiler/record attributes]
+  lookup[record: attributes, attribute, value]
+  attribute != "tag"
+  display-value = if value = [#compiler/variable] then attribute
+                  else "{{attribute}}: {{value}}"
+bind @browser
+  parent.children +=
+    [#div class:"record" scans children:
+      [#div children:
+        [#span text: "#{{attributes.tag}}"]]
+      [#div children:
+        [#div text: display-value]]]
+```
+
+```
+search @compiler @browser
+  parent = [#transform-result transform: [binds]]
+  binds = [#compiler/record attributes]
+  lookup[record: attributes, attribute, value]
+  attribute != "tag"
+  display-value = if value = [#compiler/variable] then attribute
+                  else "{{attribute}}: {{value}}"
+bind @browser
+  parent.children +=
+    [#div class:"record" binds children:
+      [#div children:
+        [#span text: "#{{attributes.tag}}"]]
+      [#div children:
+        [#div text: display-value]]]
+```
+
+```css
+.transform { background:#222; color:#ccc; padding:20px; }
+.transform .name { font-size:14pt; margin-bottom:10px; }
+.transform .description { color: #aaf; margin-bottom:20px; }
+.record { border: 1px solid #999; padding:10px; margin-top:10px; margin-bottom: 10px; }
+```
+
+Make a tag explorer
+
+```
+search
+  lookup[record, attribute: "tag", value]
+bind @browser
+  [#div #tag-button text: value]
+```
+
+```
+search @event @browser
+  [#click element: [#tag-button text]]
+commit @browser
+  [#div text: "CLICKED! {{text}}"]
+```
+
+Add some test data
+
+```
+bind
+  [#foo value: "hey what's up?"]
+  [#person name:"chris" age:29]
+  [#person name:"rob" age:29]
+  [#person name:"corey" age:30]
+  [#person name:"jjosh" age:23]
+```
+
+Create a transform that looks for `#foo` records and adds a div with their `value` attribute as its text
+
+```
+commit @compiler
+  var1 = [#compiler/variable]
+  var2 = [#compiler/variable]
+  var3 = [#compiler/variable]
+  var4 = [#compiler/variable]
+  [#compiler/transform
+    name: "cool stuff"
+    description: "this is a test transform for us to use"
+    scans: [#compiler/record variable:var1 attributes: [name:var2, tag:"person"] scopes: "session"]
+    binds: [#compiler/record variable:var4 attributes: [tag:"div", text:var2, thing:var1, style:var3] scopes: "browser"]
+           [#compiler/record variable:var3 attributes: [color:"red", parent:var1] scopes: "browser"]
+  ]
+```
