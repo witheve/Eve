@@ -6,7 +6,7 @@
  
 Eve is a programming language based on years of research into building a human-first programming platform. 
 
-**This repository hosts a preview of Eve v0.3 alpha, which is currently under active development. You can use Eve on its own or integrate it into an exixsting project, but be aware this preview contains bugs and lacks documentation. For help with this preview release, please contact the devlopers on the Eve [mailing list](https://groups.google.com/forum/#!forum/eve-talk)**
+**This repository hosts a preview of Eve v0.3 alpha, which is currently under active development. You can use Eve on its own or integrate it into an existing project, but be aware this preview contains bugs and lacks documentation. For help with this preview release, please contact the developers on the Eve [mailing list](https://groups.google.com/forum/#!forum/eve-talk)**
 
 ## Getting Started with Eve v0.3 preview
 
@@ -38,7 +38,7 @@ You can get Eve as an npm package
 npm install witheve@preview
 ```
 
-Then inport Eve to use it in your project
+Then import Eve to use it in your project
 
 ```
 import {program} from "witheve";
