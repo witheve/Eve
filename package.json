@@ -31,27 +31,16 @@
     "test": "node ./build/test/all.js | faucet"
   },
   "dependencies": {
-    "@types/commonmark": "^0.22.29",
-    "@types/minimist": "^1.1.29",
-    "@types/mkdirp": "^0.3.29",
     "@types/node": "^6.0.41",
     "@types/node-uuid": "0.0.28",
-    "@types/request": "0.0.31",
     "@types/tape": "^4.2.28",
-    "@types/ws": "0.0.33",
-    "body-parser": "^1.15.2",
     "chevrotain": "^0.19.0",
-    "commonmark": "^0.26.0",
     "express": "^4.14.0",
     "falafel": "^2.0.0",
     "javascript-natural-sort": "^0.7.1",
-    "minimist": "^1.2.0",
-    "mkdirp": "^0.5.1",
     "node-uuid": "^1.4.7",
-    "request": "^2.75.0",
     "setimmediate": "^1.0.5",
-    "typescript": "^2.1.4",
-    "ws": "^1.1.1"
+    "typescript": "^2.1.4"
   },
   "devDependencies": {
     "faucet": "0.0.1",
