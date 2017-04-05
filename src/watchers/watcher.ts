@@ -3,8 +3,6 @@ export {RawValue, RawEAV, RawEAVC} from "../runtime/runtime";
 import {ID, GlobalInterner, RawValue, RawEAV, RawEAVC, Change, createArray, ExportHandler} from "../runtime/runtime";
 export {Program} from "../runtime/dsl2";
 import {Program, LinearFlowFunction} from "../runtime/dsl2";
-import * as glob from "glob";
-import * as fs from "fs";
 import {v4 as uuid} from "node-uuid";
 
 //------------------------------------------------------------------------------
@@ -224,47 +222,4 @@ export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
   }
 
   return eavs;
-}
-
-
-//------------------------------------------------------------------------------
-// Initialization / Packaging
-//------------------------------------------------------------------------------
-
-const WATCHER_PATHS = [
-  __dirname
-  // @TODO: Import watchers from node_modules with the appropriate flag in their package.jsons
-  // @TODO: Import watchers from the binary-local `watchers` directory.
-  // @NOTE: We normalize backslash to forwardslash to make glob happy.
-].map((path) => path.replace(new RegExp("\\\\", "g"), "/"));
-
-export function findWatchers(watcherPaths:string[] = WATCHER_PATHS, relative = false) {
-  let watcherFiles:string[] = [];
-  for(let watcherPath of watcherPaths) {
-    for(let filepath of glob.sync(watcherPath + "/**/*.js")) {
-      if(filepath === __filename) continue;
-      if(relative) filepath = path.relative(watcherPath, filepath);
-      watcherFiles.push(filepath);
-    }
-  }
-  return watcherFiles;
-}
-
-export function bundleWatchers() {
-  let bundle:{[path:string]: string} = {};
-  for(let watcherFile of findWatchers()) {
-    bundle[watcherFile] = fs.readFileSync(watcherFile).toString();
-  }
-
-  return bundle;
-}
-
-// If we're running on the machine, we can autoload all the watchers
-// for you.  For the browser, we'll still need to build an explicit
-// bundle of watchers.
-
-if(glob && glob.sync) {
-  for(let watcherFile of findWatchers()) {
-    require(watcherFile);
-  }
 }
