@@ -41,7 +41,7 @@ npm install witheve@preview
 Then import Eve to use it in your project
 
 ```
-import {program} from "witheve";
+import {Program} from "witheve";
 ```
 
 ## Learning Eve
