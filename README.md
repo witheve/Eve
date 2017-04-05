@@ -10,21 +10,39 @@ Eve is a programming language based on years of research into building a human-f
 
 ## Getting Started with Eve v0.3 preview
 
-Install [Node](https://nodejs.org/en/download/) for your platform, then install Eve:
+Install [Node](https://nodejs.org/en/download/) for your platform, then clone and build the Eve starter repository:
 
 ```
-npm install -g witheve@preview
+git clone git@github.com:witheve/eve-starter.git
+cd eve-starter
+npm install
 ```
 
-Then include Eve in your project
+You can start the program switcher, which allows you to browse included example programs:
 
 ```
-import {Program} from "witheve";
+npm start
 ```
 
-For more on running Eve, see the [documentation](http://docs.witheve.com/handbook/running/).
+Or you can run a specific program by providing its path as an argument:
 
-You can alternatively install Eve from source ([mac](http://docs.witheve.com/handbook/mac/), [windows](http://docs.witheve.com/handbook/windows/), [linux](http://docs.witheve.com/handbook/linux/)), or with [Docker](http://docs.witheve.com/handbook/docker/). 
+```
+npm start -- path/to/program.js
+```
+
+## Integrating Eve into an existing project
+
+You can get Eve as an npm package
+
+```
+npm install witheve@preview
+```
+
+Then inport Eve to use it in your project
+
+```
+import {program} from "witheve";
+```
 
 ## Learning Eve
 
