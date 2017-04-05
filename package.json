@@ -24,11 +24,10 @@
   "main": "build/src/index.js",
   "types": "build/src/index.d.ts",
   "scripts": {
-    "build": "./node_modules/.bin/tsc",
-    "postinstall": "./node_modules/.bin/tsc",
-    "prepublish": "./node_modules/.bin/tsc",
-    "build-dist": "node ./build/scripts/build-dist.js",
-    "test": "node ./build/test/all.js | faucet"
+    "build": "tsc",
+    "postinstall": "tsc",
+    "prepublish": "tsc",
+    "test": "node build/test/all.js | faucet"
   },
   "dependencies": {
     "@types/node": "^6.0.41",
