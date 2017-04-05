@@ -4,22 +4,22 @@
 
 ---
  
-Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witheve.com](http://play.witheve.com/).
+Eve is a programming language based on years of research into building a human-first programming platform. 
 
-[![Play With Eve](http://witheve.github.io/assets/images/editor.png)](http://play.witheve.com/#/examples/flappy.eve)
+**This repository hosts a preview of Eve v0.3 alpha, which is currently under active development. You can use Eve on its own or integrate it into an exixsting project, but be aware this preview contains bugs and lacks documentation. For help with this preview release, please contact the devlopers on the Eve [mailing list](https://groups.google.com/forum/#!forum/eve-talk)**
 
-## How to use Eve
+## Getting Started with Eve v0.3 preview
 
 Install [Node](https://nodejs.org/en/download/) for your platform, then install Eve:
 
 ```
-npm install -g witheve
+npm install -g witheve@preview
 ```
 
-Use the `eve` command to run a `*.eve` program:
+Then include Eve in your project
 
 ```
-eve myProgram.eve
+import {Program} from "witheve";
 ```
 
 For more on running Eve, see the [documentation](http://docs.witheve.com/handbook/running/).
