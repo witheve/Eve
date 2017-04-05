@@ -4,27 +4,45 @@
 
 ---
  
-Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witheve.com](http://play.witheve.com/).
+Eve is a programming language based on years of research into building a human-first programming platform. 
 
-[![Play With Eve](http://witheve.github.io/assets/images/editor.png)](http://play.witheve.com/#/examples/flappy.eve)
+**This repository hosts a preview of Eve v0.3 alpha, which is currently under active development. You can use Eve on its own or integrate it into an exixsting project, but be aware this preview contains bugs and lacks documentation. For help with this preview release, please contact the devlopers on the Eve [mailing list](https://groups.google.com/forum/#!forum/eve-talk)**
 
-## How to use Eve
+## Getting Started with Eve v0.3 preview
 
-Install [Node](https://nodejs.org/en/download/) for your platform, then install Eve:
-
-```
-npm install -g witheve
-```
-
-Use the `eve` command to run a `*.eve` program:
+Install [Node](https://nodejs.org/en/download/) for your platform, then clone and build the [Eve starter repository](https://github.com/witheve/eve-starter):
 
 ```
-eve myProgram.eve
+git clone git@github.com:witheve/eve-starter.git
+cd eve-starter
+npm install
 ```
 
-For more on running Eve, see the [documentation](http://docs.witheve.com/handbook/running/).
+You can start the program switcher, which allows you to browse included example programs:
 
-You can alternatively install Eve from source ([mac](http://docs.witheve.com/handbook/mac/), [windows](http://docs.witheve.com/handbook/windows/), [linux](http://docs.witheve.com/handbook/linux/)), or with [Docker](http://docs.witheve.com/handbook/docker/). 
+```
+npm start
+```
+
+Or you can run a specific program by providing its path as an argument:
+
+```
+npm start -- path/to/program.js
+```
+
+## Integrating Eve into an existing project
+
+You can get Eve as an npm package
+
+```
+npm install witheve@preview
+```
+
+Then inport Eve to use it in your project
+
+```
+import {program} from "witheve";
+```
 
 ## Learning Eve
 
