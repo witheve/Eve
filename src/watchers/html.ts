@@ -3,7 +3,7 @@ import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
 
-export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
+export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, listeners?: {[event: string]: boolean}}
 
 export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
@@ -143,6 +143,42 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       }
     }, true);
 
+    document.body.addEventListener("mouseenter", (event) => {
+      let {target} = event;
+      if(!this.isInstance(target)) return;
+
+      let eavs:(RawEAV|RawEAVC)[] = [];
+
+      let elemId = target.__element!;
+      if(target.listeners && target.listeners["hover"]) {
+        let eventId = uuid();
+        eavs.push(
+          [eventId, "tag", "html/event/hover-in"],
+          [eventId, "element", elemId]
+        );
+      }
+
+      if(eavs.length) this._sendEvent(eavs);
+    }, true);
+
+    document.body.addEventListener("mouseleave", (event) => {
+      let {target} = event;
+      if(!this.isInstance(target)) return;
+
+      let eavs:(RawEAV|RawEAVC)[] = [];
+
+        let elemId = target.__element!;
+        if(target.listeners && target.listeners["hover"]) {
+          let eventId = uuid();
+          eavs.push(
+            [eventId, "tag", "html/event/hover-out"],
+            [eventId, "element", elemId]
+          );
+        }
+
+      if(eavs.length) this._sendEvent(eavs);
+    }, true);
+
     this.program
       .commit("Remove input-related events.", ({find, choose}) => {
         let [event] = choose(
@@ -165,65 +201,45 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
 
     this.program
-      .watch("setup onmouseenter", ({find, record}) => {
-        let elemId = find("html/onmouseenter");
+      .commit("When an element is entered, mark it hovered.", ({find, record}) => {
+        let {element} = find("html/event/hover-in");
+        return [element.add("tag", "html/hovered")];
+      })
+      .commit("When an element is left, clear it's hovered.", ({find, record}) => {
+        let {element} = find("html/event/hover-out");
+        return [element.remove("tag", "html/hovered")];
+      })
+
+      .watch("When an element is hoverable, it subscribes to mouseover/mouseout", ({find, record}) => {
+        let elemId = find("html/listener/hover");
         let instanceId = find("html/instance", {element: elemId});
         return [
-          record({elemId, instanceId})
+          record({listener: "hover", elemId, instanceId})
         ]
       })
-      .asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
-        Object.keys(adds).forEach((id) => {
-          let {elemId, instanceId} = adds[id];
-          // instanceId couldn't be undefined because we've found it in .watch() above
+      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
+        for(let e of Object.keys(adds)) {
+          let {listener, elemId, instanceId} = adds[e];
           let instance = this.getInstance(instanceId)!;
-          instance.addEventListener("mouseenter", () => {
-            let changes:any[] = [];
-            let eventId = uuid();
-            changes.push(
-              [eventId, "tag", "html/event/mouseenter"],
-              [eventId, "element", elemId],
-            );
-            this._sendEvent(changes);
-          });
-        })
+          if(!instance.listeners) instance.listeners = {};
+          instance.listeners[listener] = true;
+        }
+        for(let e of Object.keys(removes)) {
+          let {listener, elemId, instanceId} = removes[e];
+          let instance = this.getInstance(instanceId)
+          if(!instance || !instance.listeners) continue;
+          instance.listeners[listener] = false;
+        }
       })
-      .watch("setup onmouseleave", ({find, record}) => {
-        let elemId = find("html/onmouseleave");
-        let instanceId = find("html/instance", {element: elemId});
-        return [
-          record({elemId, instanceId})
-        ]
-      })
-      .asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
-        Object.keys(adds).forEach((id) => {
-          let {elemId, instanceId} = adds[id];
-          // instanceId couldn't be undefined because we've found it in .watch() above
-          let instance = this.getInstance(instanceId)!;
-          instance.addEventListener("mouseleave", () => {
-            let changes:any[] = [];
-            let eventId = uuid();
-            changes.push(
-              [eventId, "tag", "html/event/mouseleave"],
-              [eventId, "element", elemId],
-            );
-            this._sendEvent(changes);
-          });
-        })
-      });
 
     this.program
-      .commit("Remove mouseenter events", ({find}) => {
-        let event = find("html/event/mouseenter");
-        return [
-          event.remove(),
-        ];
+      .commit("Remove hover-in events", ({find}) => {
+        let event = find("html/event/hover-in");
+        return [event.remove()];
       })
-      .commit("Remove mouseleave events", ({find}) => {
-        let event = find("html/event/mouseleave");
-        return [
-          event.remove(),
-        ];
+      .commit("Remove hover-out events", ({find}) => {
+        let event = find("html/event/hover-out");
+        return [event.remove()];
       });
   }
 }
