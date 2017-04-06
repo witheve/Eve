@@ -154,7 +154,7 @@ export function forwardDiffs(destination:Program, name:string = "Unnamed", debug
         console.log("FWD", name, "=>", destination.name);
         console.log(eavs.map((c) => `[${c.map(maybeIntern).join(", ")}]`).join("\n"));
       }
-      destination.inputEavs(eavs);
+      destination.inputEAVs(eavs);
     }
   };
 }
@@ -206,17 +206,17 @@ export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
 
     } else if(isRawEAVArray(value)) {
       // We have a single nested sub-object (i.e. a set of EAVs).
-      let childEavs = value;
-      let [childId] = childEavs[0];
+      let childEAVs = value;
+      let [childId] = childEAVs[0];
       eavs.push([id, attr, childId]);
-      for(let childEav of childEavs) eavs.push(childEav);
+      for(let childEAV of childEAVs) eavs.push(childEAV);
 
     } else {
       // We have a set of nested sub-objects.
-      for(let childEavs of value) {
-        let [childId] = childEavs[0];
+      for(let childEAVs of value) {
+        let [childId] = childEAVs[0];
         eavs.push([id, attr, childId]);
-        for(let childEav of childEavs) eavs.push(childEav);
+        for(let childEAV of childEAVs) eavs.push(childEAV);
       }
     }
   }

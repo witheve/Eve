@@ -42,7 +42,7 @@ class SystemWatcher extends Watcher {
           }
           this.timers[id].frame = ++frame;
           this.timers[id].prev = this.getTime(changes, timer, frame);
-          me.inputEavs(changes);
+          me.inputEAVs(changes);
         }, resolution);
         this.timers[id] = {timer:timerHandle, prev:undefined, frame:0};
       })

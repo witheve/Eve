@@ -197,7 +197,7 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(fixture, {tag: "node-color", sort: 5, color: "green"});
     appendAsEAVs(fixture, {tag: "node-color", sort: 6, color: "indigo"});
 
-    this.editor.inputEavs(fixture);
+    this.editor.inputEAVs(fixture);
   }
 
   fixtures() {

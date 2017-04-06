@@ -39,7 +39,7 @@ export class TagBrowserWatcher extends Watcher {
           eavs.push([e, a, v, 1]);
         }
         if(eavs.length) {
-          this.browser.inputEavs(eavs);
+          this.browser.inputEAVs(eavs);
         }
       })
 
@@ -77,7 +77,7 @@ export class TagBrowserWatcher extends Watcher {
           eavs.push([e, a, v, 1]);
         }
         if(eavs.length) {
-          this.browser.inputEavs(eavs);
+          this.browser.inputEAVs(eavs);
         }
       })
   }
@@ -277,7 +277,7 @@ export class TagBrowserWatcher extends Watcher {
           eavs.push([e, a, v, 1]);
         }
         if(eavs.length) {
-          this.program.inputEavs(eavs);
+          this.program.inputEAVs(eavs);
         }
       });
 
@@ -316,7 +316,7 @@ export class TagBrowserWatcher extends Watcher {
         `
       })
     );
-    prog.inputEavs(changes);
+    prog.inputEAVs(changes);
 
     return prog;
   }
