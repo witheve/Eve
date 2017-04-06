@@ -143,50 +143,38 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       }
     }, true);
 
-    window.addEventListener("mouseover", (event) => {
+    document.body.addEventListener("mouseenter", (event) => {
       let {target} = event;
       if(!this.isInstance(target)) return;
 
       let eavs:(RawEAV|RawEAVC)[] = [];
-      let current:Element|null = target;
-      while(current && this.isInstance(current)) {
-        let elemId = current.__element!;
-        if(current.listeners && current.listeners["hover"]) {
-          let eventId = uuid();
-          eavs.push(
-            [eventId, "tag", "html/event/hover-in"],
-            [eventId, "element", elemId]
-          );
-          if(current === target) {
-            eavs.push([eventId, "tag", "html/direct-target"]);
-          }
-        }
-        current = current.parentElement;
+
+      let elemId = target.__element!;
+      if(target.listeners && target.listeners["hover"]) {
+        let eventId = uuid();
+        eavs.push(
+          [eventId, "tag", "html/event/hover-in"],
+          [eventId, "element", elemId]
+        );
       }
 
       if(eavs.length) this._sendEvent(eavs);
     }, true);
 
-    window.addEventListener("mouseout", (event) => {
+    document.body.addEventListener("mouseleave", (event) => {
       let {target} = event;
       if(!this.isInstance(target)) return;
 
       let eavs:(RawEAV|RawEAVC)[] = [];
-      let current:Element|null = target;
-      while(current && this.isInstance(current)) {
-        let elemId = current.__element!;
-        if(current.listeners && current.listeners["hover"]) {
+
+        let elemId = target.__element!;
+        if(target.listeners && target.listeners["hover"]) {
           let eventId = uuid();
           eavs.push(
             [eventId, "tag", "html/event/hover-out"],
             [eventId, "element", elemId]
           );
-          if(current === target) {
-            eavs.push([eventId, "tag", "html/direct-target"]);
-          }
         }
-        current = current.parentElement;
-      }
 
       if(eavs.length) this._sendEvent(eavs);
     }, true);
