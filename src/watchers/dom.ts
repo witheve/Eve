@@ -6,7 +6,7 @@ import naturalSort = require("javascript-natural-sort");
 export interface Map<V>{[key:string]: V}
 
 export interface Style extends Map<RawValue|undefined> {__size: number}
-export interface ElemInstance extends Element {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, style?: any}
+export interface ElemInstance extends Element {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, style?: any, listeners?: {[event:string]: boolean}}
 
 export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher {
   styles:Map<Style|undefined> = Object.create(null);

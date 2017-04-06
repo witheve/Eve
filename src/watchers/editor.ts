@@ -956,7 +956,7 @@ class EditorWatcher extends Watcher {
         let molecule_cell;
         return [
           molecule_list.add("children", [
-            molecule_cell = record("editor/molecule-list/molecule", "html/element", "html/onmouseenter", "html/onmouseleave", {tagname: "div", molecule_list, molecule}),
+            molecule_cell = record("editor/molecule-list/molecule", "html/element", "html/listener/hover", {tagname: "div", molecule_list, molecule}),
             molecule_cell.add("children", [
               record("editor/molecule-list/molecule/grid", "shape/hex-grid", {molecule_cell, molecule, side, gap: 5})
             ]),
@@ -1027,7 +1027,7 @@ class EditorWatcher extends Watcher {
           () => "#aaa"
         );
         return [
-          atom_cell.add({tag: ["shape/hexagon", "html/onmouseenter", "html/onmouseleave"],  side, lineWidth, strokeStyle, x, y}).add("content", [
+          atom_cell.add({tag: ["shape/hexagon", "html/listener/hover"],  side, lineWidth, strokeStyle, x, y}).add("content", [
             record("ui/text", {atom_cell, text: node.label, style: record({color: node.color})})
           ])
         ];
@@ -1067,15 +1067,6 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     this.editor
-      .commit("When an element is entered, mark it hovered.", ({find, record}) => {
-        let {element} = find("html/event/mouseenter");
-        return [element.add("tag", "html/hovered")];
-      })
-      .commit("When an element is left, clear it's hovered.", ({find, record}) => {
-        let {element} = find("html/event/mouseleave");
-        return [element.remove("tag", "html/hovered")];
-      })
-
       .commit("Clicking a molecule opens it.", ({find}) => {
         let molecule_cell = find("editor/molecule-list/molecule");
         find("html/event/click", {element: molecule_cell});
