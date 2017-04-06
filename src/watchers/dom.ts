@@ -22,7 +22,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   abstract removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void;
 
   protected _sendEvent(eavs:(RawEAV|RawEAVC)[]) {
-    this.program.inputEavs(eavs);
+    this.program.inputEAVs(eavs);
   }
 
   getStyle(id:RawValue) {

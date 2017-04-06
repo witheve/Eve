@@ -148,7 +148,7 @@ export class PerformanceReporter {
     });
 
     // console.profile("perf");
-    me.inputEavs(eavs);
+    me.inputEAVs(eavs);
     // console.profileEnd();
   }
 

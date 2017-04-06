@@ -1693,7 +1693,7 @@ export class Program {
     return trans;
   }
 
-  inputEavs(eavcs:(RawEAVC|RawEAV)[]) {
+  inputEAVs(eavcs:(RawEAVC|RawEAV)[]) {
     let changes:Change[] = [];
     let transactionId = this.nextTransactionId++;
     for(let [e, a, v, c = 1] of eavcs as RawEAVC[]) {

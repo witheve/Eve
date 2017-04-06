@@ -154,7 +154,7 @@ export function forwardDiffs(destination:Program, name:string = "Unnamed", debug
         console.log("FWD", name, "=>", destination.name);
         console.log(eavs.map((c) => `[${c.map(maybeIntern).join(", ")}]`).join("\n"));
       }
-      destination.inputEavs(eavs);
+      destination.inputEAVs(eavs);
     }
   };
 }
