@@ -4,7 +4,7 @@ import * as test from "tape";
 
 function createProgram() {
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, not}) => {
+  prog.bind("simple block", ({find, record, not}) => {
     let left = find("left");
     not(() => {
       find("right", {left})
@@ -217,7 +217,7 @@ test("Antijoin: right -> right -> left", (assert) => {
 let programs = {
   "simple": () => {
     let prog = new Program("simple");
-    prog.block("simple block", ({find, not, record}) => {
+    prog.bind("simple block", ({find, not, record}) => {
       let input = find("input");
       not(() => input.arg0)
       return [
@@ -228,7 +228,7 @@ let programs = {
   },
   "dynamic": () => {
     let prog = new Program("simple");
-    prog.block("simple block", ({find, not, record}) => {
+    prog.bind("simple block", ({find, not, record}) => {
       let input = find("input");
       not(() => input.arg0)
       return [

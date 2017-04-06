@@ -93,7 +93,7 @@ export class TagBrowserWatcher extends Watcher {
 
     // Tag Button
     prog
-      .block("Tag button component", ({find, record}) => {
+      .bind("Tag button component", ({find, record}) => {
         let tagButton = find("tag-browser/tag");
         let tag = tagButton.target;
         return [
@@ -128,7 +128,7 @@ export class TagBrowserWatcher extends Watcher {
 
     // Record
     prog
-      .block("Record component (closed)", ({find, record}) => {
+      .bind("Record component (closed)", ({find, record}) => {
         let childRecord = find("tag-browser/record");
 
         return [
@@ -147,7 +147,7 @@ export class TagBrowserWatcher extends Watcher {
         ];
       })
 
-      .block("Record component (open)", ({find, lookup, record}) => {
+      .bind("Record component (open)", ({find, lookup, record}) => {
         let childRecord = find("tag-browser/record", {open: "true"});
         let {attribute, value} = lookup(childRecord.target);
         attribute != "tag";
@@ -177,7 +177,7 @@ export class TagBrowserWatcher extends Watcher {
     // Record Attribute
 
     prog
-      .block("Record attribute component", ({find, choose, record}) => {
+      .bind("Record attribute component", ({find, choose, record}) => {
         let recordAttribute = find("tag-browser/record-attribute");
         let {target} = find("tag-browser/view")
 
@@ -200,7 +200,7 @@ export class TagBrowserWatcher extends Watcher {
 
     // Record Value
     prog
-      .block("Record value component (as tag)", ({find, record}) => {
+      .bind("Record value component (as tag)", ({find, record}) => {
         let recordValue = find("tag-browser/record-value");
         let {val} = recordValue;
         let childTag = find("child-tag", {"child-tag": val});
@@ -209,7 +209,7 @@ export class TagBrowserWatcher extends Watcher {
         ];
       })
 
-      .block("Record value component (as record)", ({find, record}) => {
+      .bind("Record value component (as record)", ({find, record}) => {
         let recordValue = find("tag-browser/record-value");
         let childRecord = find("child-record");
         childRecord == recordValue.val;
@@ -218,7 +218,7 @@ export class TagBrowserWatcher extends Watcher {
         ];
       })
 
-      .block("Record value component (as raw value)", ({find, not, record}) => {
+      .bind("Record value component (as raw value)", ({find, not, record}) => {
         let recordValue = find("tag-browser/record-value");
         // @FIXME: Not is *still* busted
         not(() => recordValue.tag == "tag-browser/tag");
@@ -230,7 +230,7 @@ export class TagBrowserWatcher extends Watcher {
       })
 
     // Tag Cloud
-    prog.block("List all tags in the tag cloud.", ({find, not, record}) => {
+    prog.bind("List all tags in the tag cloud.", ({find, not, record}) => {
        let cloud = find("tag-browser/cloud");
       let rec = find("child-tag");
       let tag = rec["child-tag"];
@@ -242,7 +242,7 @@ export class TagBrowserWatcher extends Watcher {
 
     // Tag View
     prog
-      .block("Show the targeted tag", ({find, record}) => {
+      .bind("Show the targeted tag", ({find, record}) => {
         let view = find("tag-browser/view");
         let target = view.target;
 
@@ -250,7 +250,7 @@ export class TagBrowserWatcher extends Watcher {
           view.add("children", record("ui/text", {text: `Current tag: ${target}`, sort: 0}))
         ]
       })
-      .block("Show records with the targeted tag", ({find, not, record}) => {
+      .bind("Show records with the targeted tag", ({find, not, record}) => {
         let view = find("tag-browser/view");
         let targetedRecord = find("child-record", {"child-tag": view.target});
 
@@ -283,7 +283,7 @@ export class TagBrowserWatcher extends Watcher {
 
     // Display Name aliasing
     prog
-      .block("Alias display names", ({find, choose}) => {
+      .bind("Alias display names", ({find, choose}) => {
         let record = find("child-record");
         let [name] = choose(
           //() => record.displayName,

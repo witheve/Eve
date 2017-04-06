@@ -56,7 +56,7 @@ export class PerformanceReporter {
     let me = new Program("Performance report");
     me.attach("ui");
 
-    me.block("calculate block percentage", ({find, record, lib: {math}}) => {
+    me.bind("calculate block percentage", ({find, record, lib: {math}}) => {
       let total = find("total");
       total.property.name == "transaction"
       let block = find("block");
@@ -68,7 +68,7 @@ export class PerformanceReporter {
       ]
     });
 
-    me.block("draw total", ({find, record, lib: {math}}) => {
+    me.bind("draw total", ({find, record, lib: {math}}) => {
       let container = find("block-times")
       let total = find("total");
       let property = total.property;
@@ -94,7 +94,7 @@ export class PerformanceReporter {
       ]
     });
 
-    me.block("draw blocks 2", ({find, record, lib: {math}}) => {
+    me.bind("draw blocks 2", ({find, record, lib: {math}}) => {
       let block = find("block");
       let {name, property} = block;
       property.name == "block"
@@ -123,7 +123,7 @@ export class PerformanceReporter {
       ]
     });
 
-    me.block("draw props", ({find, record, lib: {math}}) => {
+    me.bind("draw props", ({find, record, lib: {math}}) => {
       let container = find("props");
       let {block} = container;
       let property = block.property;
@@ -142,7 +142,7 @@ export class PerformanceReporter {
       ]
     });
 
-    me.block("Translate elements into html", ({find, record, union}) => {
+    me.bind("Translate elements into html", ({find, record, union}) => {
       let elem = find("html/div");
       return [elem.add("tag", "html/element").add("tagname", "div")];
     });

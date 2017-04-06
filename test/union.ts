@@ -5,7 +5,7 @@ import * as test from "tape";
 var programs = {
   "1 static": () => {
     let prog = new Program("1 static branch");
-    prog.block("simple block", ({find, union, record}) => {
+    prog.bind("simple block", ({find, union, record}) => {
       let foo = find("input");
       let [branch] = union(() => 1);
       return [
@@ -16,7 +16,7 @@ var programs = {
   },
   "2 static": () => {
     let prog = new Program("2 static branches");
-    prog.block("simple block", ({find, union, record}) => {
+    prog.bind("simple block", ({find, union, record}) => {
       let foo = find("input");
       let [branch] = union(
         () => 1,
@@ -31,7 +31,7 @@ var programs = {
 
   "1 dynamic": () => {
     let prog = new Program("1 dynamic branch");
-    prog.block("simple block", ({find, union, record}) => {
+    prog.bind("simple block", ({find, union, record}) => {
       let foo = find("input");
       let [output] = union(() => foo.arg0);
       return [
@@ -43,7 +43,7 @@ var programs = {
 
   "2 dynamic": () => {
     let prog = new Program("2 dynamic branches");
-    prog.block("simple block", ({find, union, record}) => {
+    prog.bind("simple block", ({find, union, record}) => {
       let foo = find("input");
       let [output] = union(
         () => {foo.arg0 == 1; return ["one"]},
@@ -326,7 +326,7 @@ test("Union: 2 dynamic branches +A:1 +B:2, -A:1", (assert) => {
 test("Union: basic", (assert) => {
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, union}) => {
+  prog.bind("simple block", ({find, record, lib, union}) => {
     let person = find("person");
     let [info] = union(() => {
       person.dog;
@@ -360,7 +360,7 @@ test("Union: basic", (assert) => {
 test("Union: static moves", (assert) => {
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, union}) => {
+  prog.bind("simple block", ({find, record, lib, union}) => {
     let person = find("person");
     let [info] = union(() => {
       return "cool";

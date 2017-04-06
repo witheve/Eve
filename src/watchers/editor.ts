@@ -12,7 +12,7 @@ class EditorWatcher extends Watcher {
     let {editor, program} = this;
 
     editor
-      .block("Draw the root editor view.", ({find, record}) => {
+      .bind("Draw the root editor view.", ({find, record}) => {
         let editor = find("editor/root");
 
         return [
@@ -28,7 +28,7 @@ class EditorWatcher extends Watcher {
           ])
         ];
       })
-      .block("Attach the current frame type to the editor content window.", ({find}) => {
+      .bind("Attach the current frame type to the editor content window.", ({find}) => {
         let editor = find("editor/root");
         let {active_frame} = editor;
         let content = find("editor/block/content", {editor});
@@ -36,7 +36,7 @@ class EditorWatcher extends Watcher {
       })
 
 
-      .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, choose, gather}) => {
+      .bind("A block's next node sort is it's max node sort + 1 (or 1).", ({find, choose, gather}) => {
         let block = find("block");
         // @NOTE: We can only reliably use an aggregate in a choose if the choose inputs are *only* used in the aggregate grouping.
         let [sort] = choose(() => {
@@ -47,7 +47,7 @@ class EditorWatcher extends Watcher {
         return [block.add("next_node_sort", sort)];
       })
 
-      .block("A node is another node's parent if it has an AV who's V is the other node's entity", ({find}) => {
+      .bind("A node is another node's parent if it has an AV who's V is the other node's entity", ({find}) => {
         let parent = find("node");
         let node = find("node");
         node != parent;
@@ -56,7 +56,7 @@ class EditorWatcher extends Watcher {
         return [node.add({parent, parent_field: attribute.attribute})];
       })
 
-      .block("Mark nodes without parents as root nodes.", ({find, not}) => {
+      .bind("Mark nodes without parents as root nodes.", ({find, not}) => {
         let node = find("node");
         not(() => node.parent);
         return [node.add("tag", "root-node")];
@@ -109,7 +109,7 @@ class EditorWatcher extends Watcher {
         return [attribute.remove("value", "")];
       })
 
-      .block("A node's name is it's parent_field if it has one, or it's tag attribute.", ({find, choose}) => {
+      .bind("A node's name is it's parent_field if it has one, or it's tag attribute.", ({find, choose}) => {
         let node = find("node");
         let [name] = choose(
           () => node.parent_field,
@@ -122,13 +122,13 @@ class EditorWatcher extends Watcher {
         );
         return [node.add("name", name)]
       })
-      .block("A node's label is the uppercased first character of it's name.", ({find, lib:{string}}) => {
+      .bind("A node's label is the uppercased first character of it's name.", ({find, lib:{string}}) => {
         let node = find("node");
         let {name} = node;
         let label = string.uppercase(string.get(name, 1));
         return [node.add("label", label)];
       })
-      .block("A node's color is derived from it's sort.", ({find, lib:{math}}) => {
+      .bind("A node's color is derived from it's sort.", ({find, lib:{math}}) => {
         let node = find("node");
         let {color} = find("node-color", {sort: math.mod(node.sort - 1, 5) + 1})
         return [node.add("color", color)];
@@ -295,7 +295,7 @@ class EditorWatcher extends Watcher {
 
   navigation() {
     this.editor
-      .block("Populate the nav bar with the program's block tags.", ({find, record}) => {
+      .bind("Populate the nav bar with the program's block tags.", ({find, record}) => {
         let nav = find("editor/nav");
         let tag = nav.editor.block.nav_tag;
         return [
@@ -307,7 +307,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Populate nav tags with the blocks that have them.", ({find, choose, record}) => {
+      .bind("Populate nav tags with the blocks that have them.", ({find, choose, record}) => {
         let tag = find("editor/nav/tag");
         let block = tag.editor.block;
         block.nav_tag == tag.nav_tag;
@@ -328,7 +328,7 @@ class EditorWatcher extends Watcher {
 
   header() {
     this.editor
-      .block("Populate the block description for the active block.", ({find, choose, record}) => {
+      .bind("Populate the block description for the active block.", ({find, choose, record}) => {
         let description = find("editor/block/description");
         let active_block = description.editor.active_block;
 
@@ -343,7 +343,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Populate the block storyboard for the active block.", ({find, record}) => {
+      .bind("Populate the block storyboard for the active block.", ({find, record}) => {
         let storyboard = find("editor/block/storyboard");
         let {editor} = storyboard;
         let {active_block} = editor;
@@ -357,7 +357,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Mark the active frame.", ({find}) => {
+      .bind("Mark the active frame.", ({find}) => {
         let editor = find("editor/root");
         let {active_frame:frame} = editor;
         let frame_elem = find("editor/block/frame", {frame});
@@ -371,7 +371,7 @@ class EditorWatcher extends Watcher {
         return [editor.remove("active_frame").add("active_frame", frame)];
       })
 
-      .block("Add new frame button to the storyboard.", ({find, record}) => {
+      .bind("Add new frame button to the storyboard.", ({find, record}) => {
         let storyboard = find("editor/block/storyboard");
         let {editor} = storyboard;
         let {active_block} = editor;
@@ -390,7 +390,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("When the new frame is open, display a list of editor types to choose from.", ({find, record}) => {
+      .bind("When the new frame is open, display a list of editor types to choose from.", ({find, record}) => {
         let new_frame = find("editor/new-frame", {open: "true"});
         let {editor} = new_frame;
         return [
@@ -423,7 +423,7 @@ class EditorWatcher extends Watcher {
 
   nodeTree() {
     this.editor
-      .block("Decorate the node tree as a column.", ({find, record}) => {
+      .bind("Decorate the node tree as a column.", ({find, record}) => {
         let tree = find("editor/node-tree");
         let side = 21, lineWidth = 1, strokeStyle = "#AAA";
         return [tree.add({tag: "ui/column"}).add("children", [
@@ -437,7 +437,7 @@ class EditorWatcher extends Watcher {
         ])];
       })
 
-      .block("When the new node is open, it has an input for specifying the tag.", ({find, record}) => {
+      .bind("When the new node is open, it has an input for specifying the tag.", ({find, record}) => {
         let new_node = find("editor/node-tree/node/new", {open: "true"});
         return [
           new_node.add("children", [
@@ -446,7 +446,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Each root node is an element in the tree.", ({find, record}) => {
+      .bind("Each root node is an element in the tree.", ({find, record}) => {
         let tree = find("editor/node-tree");
         let {node} = tree;
         node.tag == "root-node";
@@ -457,7 +457,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("A node consists of a hex, and a pattern.", ({find, record}) => {
+      .bind("A node consists of a hex, and a pattern.", ({find, record}) => {
         let tree_node = find("editor/node-tree/node");
         let {tree, node} = tree_node;
         let {color, label} = node;
@@ -472,7 +472,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("A node pattern is a column of fields on the node.", ({find, record}) => {
+      .bind("A node pattern is a column of fields on the node.", ({find, record}) => {
         let node_pattern = find("editor/node-tree/node/pattern");
         let {tree_node} = node_pattern;
         let {name} = tree_node.node;
@@ -486,7 +486,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("If a node has attributes, display them in it's pattern.", ({find, not, choose, record}) => {
+      .bind("If a node has attributes, display them in it's pattern.", ({find, not, choose, record}) => {
         let node_pattern = find("editor/node-tree/node/pattern");
         let {tree_node} = node_pattern;
         let {node} = tree_node;
@@ -502,7 +502,7 @@ class EditorWatcher extends Watcher {
           ])
         ];
       })
-      .block("A node displays attributes as text", ({find, record}) => {
+      .bind("A node displays attributes as text", ({find, record}) => {
         let pattern_field = find("editor/node-tree/node/pattern/field");
         let {tree_node, attribute} = pattern_field;
         let field = attribute.attribute;
@@ -513,7 +513,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("If a node's attribute has a value, display them in it's field.", ({find, not, record}) => {
+      .bind("If a node's attribute has a value, display them in it's field.", ({find, not, record}) => {
         let field = find("editor/node-tree/node/pattern/field");
         let {tree_node, attribute} = field;
         let {node} = tree_node;
@@ -526,7 +526,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("An open field has a value cell even if it's attribute lacks one.", ({find, choose, record}) => {
+      .bind("An open field has a value cell even if it's attribute lacks one.", ({find, choose, record}) => {
         let field = find("editor/node-tree/node/pattern/field", {open: "true"});
         let {tree_node, attribute} = field;
         let [value] = choose(() => attribute.value, () => "");
@@ -537,7 +537,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("An open node displays controls beneath itself.", ({find, record}) => {
+      .bind("An open node displays controls beneath itself.", ({find, record}) => {
         let tree_node = find("editor/node-tree/node", {open: "true"});
         let hex = find("editor/node-tree/node/hex", {tree_node});
         return [
@@ -550,7 +550,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("An open node displays delete buttons on its fields.", ({find, choose, record}) => {
+      .bind("An open node displays delete buttons on its fields.", ({find, choose, record}) => {
         let field = find("editor/node-tree/node/pattern/field");
         let {tree_node, attribute} = field;
         tree_node.open;
@@ -561,7 +561,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("An open node displays a plus field button in its pattern.", ({find, record}) => {
+      .bind("An open node displays a plus field button in its pattern.", ({find, record}) => {
         let tree_node = find("editor/node-tree/node", {open: "true"});
         let node_pattern = find("editor/node-tree/node/pattern", {tree_node});
         return [
@@ -576,7 +576,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Non root nodes are children of their parent's pattern.", ({find, record}) => {
+      .bind("Non root nodes are children of their parent's pattern.", ({find, record}) => {
         let node = find("node");
         let {parent} = node;
         let tree_node = find("editor/node-tree/node", {node: parent});
@@ -593,20 +593,20 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Fill tag completions.", ({find, record}) => {
+      .bind("Fill tag completions.", ({find, record}) => {
         let new_tag = find("editor/node-tree/node/new/tag");
         let completion = find("editor/existing-tag");
         return [new_tag.add("completion", completion)];
       })
 
-      .block("Fill attribute completions.", ({find, record}) => {
+      .bind("Fill attribute completions.", ({find, record}) => {
         let new_attribute = find("editor/node-tree/node/field/new/attribute");
         let {tree_node} = new_attribute;
         let completion = find("editor/existing-node-attribute", {node: tree_node.node});
         return [new_attribute.add("completion", completion)];
       })
 
-      .block("An open tree node require completions.", ({find}) => {
+      .bind("An open tree node require completions.", ({find}) => {
         let tree_node = find("editor/node-tree/node", {open: "true"});
         let {node} = tree_node;
         return [node.add("completing", "true")];
@@ -652,14 +652,14 @@ class EditorWatcher extends Watcher {
         return [tree_node.remove("open")];
       })
 
-      .block("Clicking the delete node button removes its node from the block.", ({find, record}) => {
+      .bind("Clicking the delete node button removes its node from the block.", ({find, record}) => {
         let delete_node = find("editor/node-tree/node/delete");
         find("html/event/click", {element: delete_node})
         let {tree_node} = delete_node;
         let {node} = tree_node;
         return [record("editor/event/delete-node", {node})];
       })
-      .block("Deleting a node deletes its children.", ({find, choose, gather, record}) => {
+      .bind("Deleting a node deletes its children.", ({find, choose, gather, record}) => {
         let {node:parent} = find("editor/event/delete-node");
         let node = find("node", {parent});
         return [record("editor/event/delete-node", {node})];
@@ -695,13 +695,13 @@ class EditorWatcher extends Watcher {
         not(() =>  find("html/event/click", {element: new_node}));
         return [new_node.remove("open")];
       })
-      .block("Clicking the new node save button saves it.", ({find, not, record}) => {
+      .bind("Clicking the new node save button saves it.", ({find, not, record}) => {
         let save_new = find("editor/node-tree/node/new/save");
         find("html/event/click", {element: save_new});
         let {new_node} = save_new;
         return [record("editor/event/save-node", {new_node})];
       })
-      .block("selecting a tag in the new node autocomplete saves it.", ({find, not, record}) => {
+      .bind("selecting a tag in the new node autocomplete saves it.", ({find, not, record}) => {
         let tag_autocomplete = find("editor/node-tree/node/new/tag");
         let {new_node, selected} = tag_autocomplete;
         return [record("editor/event/save-node", {new_node})];
@@ -746,7 +746,7 @@ class EditorWatcher extends Watcher {
         return [field_autocomplete.add("tag", "html/trigger-focus")];
       })
 
-      .block("Clicking the new field save button saves it.", ({find, record}) => {
+      .bind("Clicking the new field save button saves it.", ({find, record}) => {
         let add_field = find("editor/node-tree/node/field/new");
         let event = find("html/event/click", {element: add_field})
         let {tree_node} = add_field;
@@ -757,7 +757,7 @@ class EditorWatcher extends Watcher {
           record("ui/event/clear", {autocomplete: field_autocomplete})
         ];
       })
-      .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
+      .bind("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
         let field_autocomplete = find("editor/node-tree/node/field/new/attribute");
         let {tree_node, selected} = field_autocomplete;
         return [
@@ -789,7 +789,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Blurring a field's value input saves it.", ({find, record}) => {
+      .bind("Blurring a field's value input saves it.", ({find, record}) => {
         let field_value = find("editor/node-tree/node/pattern/value");
         let {value} = find("html/event/blur", {element: field_value});
         let {tree_node, attribute} = field_value;
@@ -807,7 +807,7 @@ class EditorWatcher extends Watcher {
 
   queryEditor() {
     this.editor
-      .block("Display a node tree for the active block.", ({find, record}) => {
+      .bind("Display a node tree for the active block.", ({find, record}) => {
         let content = find("editor/block/content", {type: "query"});
         let {editor} = content;
         return [
@@ -817,12 +817,12 @@ class EditorWatcher extends Watcher {
           ])
         ]
       })
-      .block("Fill the tree with the active block's nodes.", ({find, record}) => {
+      .bind("Fill the tree with the active block's nodes.", ({find, record}) => {
         let node_tree = find("editor/query-tree");
         let {editor} = node_tree;
         return [node_tree.add("node", editor.active_block.node)];
       })
-      .block("Fill the list with the active block's molecules.", ({find, record}) => {
+      .bind("Fill the list with the active block's molecules.", ({find, record}) => {
         let molecule_list = find("editor/query-molecules");
         let {editor} = molecule_list;
         let molecule = find("editor/molecule", {block: editor.active_block})
@@ -836,7 +836,7 @@ class EditorWatcher extends Watcher {
 
   moleculeGenerator() {
     this.editor
-      .block("Create a molecule generator for the active block if it has any nodes.", ({find, record}) => {
+      .bind("Create a molecule generator for the active block if it has any nodes.", ({find, record}) => {
         let editor = find("editor/root");
         let {active_block:block} = editor;
         block.node.attribute;
@@ -846,7 +846,7 @@ class EditorWatcher extends Watcher {
           ])
         ];
       })
-      .block("Create an atom record and output for each node of the block with attributes.", ({find, record}) => {
+      .bind("Create an atom record and output for each node of the block with attributes.", ({find, record}) => {
         let generator = find("editor/molecule/generator");
         let {block} = generator;
         let {node} = block;
@@ -870,7 +870,7 @@ class EditorWatcher extends Watcher {
           ])
         ];
       })
-      .block("Attributes with no value are free fields.", ({find, not, record}) => {
+      .bind("Attributes with no value are free fields.", ({find, not, record}) => {
         let generator = find("editor/molecule/generator");
         let {block} = generator;
         let {node} = block;
@@ -878,7 +878,7 @@ class EditorWatcher extends Watcher {
         not(() => attribute.value);
         return [record("editor/molecule/free-field", "eve/compiler/var", {node, attribute})];
       })
-      .block("Attach attributes to atom records and outputs.", ({find, choose, record}) => {
+      .bind("Attach attributes to atom records and outputs.", ({find, choose, record}) => {
         let atom_record = find("editor/atom/record");
         let {generator, node} = atom_record;
         let record_output = find("editor/record/output", {node});
@@ -899,7 +899,7 @@ class EditorWatcher extends Watcher {
           ])
         ];
       })
-      .block("Create a molecule output for each root node.", ({find, record}) => {
+      .bind("Create a molecule output for each root node.", ({find, record}) => {
         let generator = find("editor/molecule/generator");
         let {block} = generator;
         let {node} = block;
@@ -921,7 +921,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Attach subnode atoms to their parent's molecules.", ({find, record}) => {
+      .bind("Attach subnode atoms to their parent's molecules.", ({find, record}) => {
         let molecule = find("editor/molecule/output");
         let {generator} = molecule;
         let {block} = generator;
@@ -943,12 +943,12 @@ class EditorWatcher extends Watcher {
 
   moleculeLayout() {
     this.editor
-      .block("Decorate a molecule list.", ({find}) => {
+      .bind("Decorate a molecule list.", ({find}) => {
         let molecule_list = find("editor/molecule-list");
         return [molecule_list.add({tag: "ui/row"})];
       })
 
-      .block("Draw some molecules.", ({find, record}) => {
+      .bind("Draw some molecules.", ({find, record}) => {
         let molecule_list = find("editor/molecule-list");
         let {molecule} = molecule_list;
         let {atom} = molecule;
@@ -964,7 +964,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Add cells to molecules.", ({find, record}) => {
+      .bind("Add cells to molecules.", ({find, record}) => {
         let molecule_grid = find("editor/molecule-list/molecule/grid");
         let {molecule_cell} = molecule_grid;
         let {molecule} = molecule_cell;
@@ -977,7 +977,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("A molecule's size is it's largest atom sort.", ({find, not, record}) => {
+      .bind("A molecule's size is it's largest atom sort.", ({find, not, record}) => {
         let cell = find("editor/molecule-list/molecule/cell");
         let {molecule_cell} = cell;
         not(() => {
@@ -989,7 +989,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("HACK: workaround double choose bug offset + mag.", ({find, lib:{math}, choose, record}) => {
+      .bind("HACK: workaround double choose bug offset + mag.", ({find, lib:{math}, choose, record}) => {
         let molecule_cell = find("editor/molecule-list/molecule");
         let {size} = molecule_cell;
         // @FIXME: This isn't quite right due to 0,0 offset
@@ -1001,7 +1001,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("A molecule's width and height are derived from it's size.", ({find, lib:{math}, choose, record}) => {
+      .bind("A molecule's width and height are derived from it's size.", ({find, lib:{math}, choose, record}) => {
         let molecule_cell = find("editor/molecule-list/molecule");
         let {offset, mag} = molecule_cell;
         let cell_width = 39 + 5;
@@ -1015,7 +1015,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Populate atom cells from their atoms.", ({find, choose, record}) => {
+      .bind("Populate atom cells from their atoms.", ({find, choose, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule_cell, molecule, atom, side, x, y} = atom_cell;
         let {node} = atom;
@@ -1033,7 +1033,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Sort atoms by id.", ({find, gather, record}) => {
+      .bind("Sort atoms by id.", ({find, gather, record}) => {
         let atom = find("editor/atom");
         let molecule = find("editor/molecule", {atom});
         let {node} = atom;
@@ -1041,20 +1041,20 @@ class EditorWatcher extends Watcher {
         return [atom.add("sort", ix)];
       })
 
-      .block("Sort atom cells by id.", ({find, gather, record}) => {
+      .bind("Sort atom cells by id.", ({find, gather, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom} = atom_cell;
         let ix = gather(atom_cell.atom.node.sort, atom_cell).per(molecule).sort();
         return [atom_cell.add("sort", ix)];
       })
-      .block("Position atom cells in a spiral.", ({find, choose, lib:{math}, record}) => {
+      .bind("Position atom cells in a spiral.", ({find, choose, lib:{math}, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom} = atom_cell;
         let {x, y} = find("spiral", {row: 0, sort: atom_cell.sort});
         return [atom_cell.add({x, y})];
       })
 
-      .block("When a molecule is open, display it's infobox.", ({find, record}) => {
+      .bind("When a molecule is open, display it's infobox.", ({find, record}) => {
         let molecule_cell = find("editor/molecule-list/molecule", {open: "true"});
         let {molecule} = molecule_cell;
         return [molecule_cell.add("children", [
@@ -1106,12 +1106,12 @@ class EditorWatcher extends Watcher {
 
   infobox() {
     this.editor
-      .block("A molecule infobox is a column of node infoboxes.", ({find, record}) => {
+      .bind("A molecule infobox is a column of node infoboxes.", ({find, record}) => {
         let infobox = find("editor/infobox");
         return [infobox.add("tag", "ui/column")];
       })
 
-      .block("A molecule infobox has a node infobox for each unique node.", ({find, record}) => {
+      .bind("A molecule infobox has a node infobox for each unique node.", ({find, record}) => {
         let infobox = find("editor/infobox");
         let {molecule} = infobox;
         let {atom} = molecule;
@@ -1121,7 +1121,7 @@ class EditorWatcher extends Watcher {
         ])];
       })
 
-      .block("A node infobox has the node name, a plus field button.", ({find, record}) => {
+      .bind("A node infobox has the node name, a plus field button.", ({find, record}) => {
         let node_infobox = find("editor/infobox/node");
         let {node} = node_infobox;
         return [
@@ -1137,7 +1137,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("A node infobox with multiple atoms shows a paginator in it's name row.", ({find, gather, record}) => {
+      .bind("A node infobox with multiple atoms shows a paginator in it's name row.", ({find, gather, record}) => {
         let node_infobox = find("editor/infobox/node");
         let infobox_header = find("editor/infobox/node/header", {node_infobox});
         let {node, count} = node_infobox;
@@ -1153,7 +1153,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("A node infobox's count is the number of atoms it has that match.", ({find, gather, record}) => {
+      .bind("A node infobox's count is the number of atoms it has that match.", ({find, gather, record}) => {
         let node_infobox = find("editor/infobox/node");
         let {node, infobox} = node_infobox;
         let {molecule} = infobox;
@@ -1163,7 +1163,7 @@ class EditorWatcher extends Watcher {
         return [node_infobox.add("count", count)];
       })
 
-      .block("A molecule infobox atom's fields are derived from its record AVs. Show the greatest if there are multiple and none are open.", ({find, lookup, gather, not, record}) => {
+      .bind("A molecule infobox atom's fields are derived from its record AVs. Show the greatest if there are multiple and none are open.", ({find, lookup, gather, not, record}) => {
         let node_infobox = find("editor/infobox/node");
         let {node, atom} = node_infobox;
         let {attribute, value} = lookup(atom.record);
@@ -1192,7 +1192,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("A molecule infobox atom's fields are derived from its record AVs. Show the open atom if it exists.", ({find, lookup, not, record}) => {
+      .bind("A molecule infobox atom's fields are derived from its record AVs. Show the open atom if it exists.", ({find, lookup, not, record}) => {
         let node_infobox = find("editor/infobox/node");
         let {node, atom, infobox} = node_infobox;
         // @FIXME: Strongly coupled to molecule list here.
@@ -1211,14 +1211,14 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Fill infobox attribute completions.", ({find, record}) => {
+      .bind("Fill infobox attribute completions.", ({find, record}) => {
         let new_attribute = find("editor/infobox/field/attribute");
         let {node_infobox} = new_attribute;
         let completion = find("editor/existing-node-attribute", {node: node_infobox.node});
         return [new_attribute.add("completion", completion)];
       })
 
-      .block("An infobox require completions.", ({find}) => {
+      .bind("An infobox require completions.", ({find}) => {
         let node_infobox = find("editor/infobox/node");
         let {node} = node_infobox;
         return [node.add("completing", "true")];
@@ -1238,7 +1238,7 @@ class EditorWatcher extends Watcher {
         return [field_autocomplete.add("tag", "html/trigger-focus")];
       })
 
-      .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
+      .bind("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
         let field_autocomplete = find("editor/infobox/field/attribute");
         let {node_infobox, selected} = field_autocomplete;
         return [
@@ -1271,14 +1271,14 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     this.editor
-      .block("Create a completion generator for node -> attribute.", ({find, record}) => {
+      .bind("Create a completion generator for node -> attribute.", ({find, record}) => {
         let node = find("node", {completing: "true"});
         return [
           record("editor/node/attribute/completer", "eve/compiler/block", {node, name: "Node attribute completer.", type: "watch", watcher: "send-to-editor"})
             .add("joined_node", node)
         ];
       })
-      .block("Create a record for each node.", ({find, record}) => {
+      .bind("Create a record for each node.", ({find, record}) => {
         // @NOTE: This is intentionally local. Do we want it to be block-level filtering vs node-level?
         let completer = find("editor/node/attribute/completer");
         let {joined_node:node} = completer;
@@ -1292,14 +1292,14 @@ class EditorWatcher extends Watcher {
           ])
         ];
       })
-      .block("Attributes with no value are free fields.", ({find, not, record}) => {
+      .bind("Attributes with no value are free fields.", ({find, not, record}) => {
         let completer = find("editor/node/attribute/completer");
         let {joined_node:node} = completer;
         let {attribute} = node;
         not(() => attribute.value);
         return [record("editor/molecule/free-field", "eve/compiler/var", {node, attribute})]; // @FIXME: Rename this tag something more generic.
       })
-      .block("Attach attributes to node record.", ({find, choose, record}) => {
+      .bind("Attach attributes to node record.", ({find, choose, record}) => {
         let node_record = find("editor/node/record");
         let {completer, node} = node_record;
         let {attribute} = node;
@@ -1314,12 +1314,12 @@ class EditorWatcher extends Watcher {
 
         return [node_record.add("attribute", record({attribute: attribute.attribute, value}))];
       })
-      .block("Parent nodes are joined nodes.", ({find, choose, record}) => {
+      .bind("Parent nodes are joined nodes.", ({find, choose, record}) => {
         let completer = find("editor/node/attribute/completer");
         let {joined_node:node} = completer;
         return [completer.add("joined_node", node.parent)];
       })
-      .block("The completions are the attributes of any records that still match.", ({find, record}) => {
+      .bind("The completions are the attributes of any records that still match.", ({find, record}) => {
         let completer = find("editor/node/attribute/completer");
         let {node} = completer;
         let output_var;
@@ -1343,7 +1343,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Compute is_record based on the values of existing node attributes.", ({find, lib:{string}}) => {
+      .bind("Compute is_record based on the values of existing node attributes.", ({find, lib:{string}}) => {
         let existing = find("editor/existing-node-attribute");
         string.index_of(existing.value, "|"); // @FIXME: hacky gen id detection.
         return [existing.add("is_record", "true")];

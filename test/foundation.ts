@@ -9,7 +9,7 @@ test("find a record and generate a record as a result", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     find({foo: "bar"});
     return [
       record({zomg: "baz"})
@@ -37,7 +37,7 @@ test("> filters numbers", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     let a = find();
     let b = find();
     a.age > b.age;
@@ -77,7 +77,7 @@ test("simple addition", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     let a = find("person");
     let b = find("person");
     a.age > b.age;
@@ -120,7 +120,7 @@ test("simple division", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     let a = find("person");
     let b = find("person");
     a.age > b.age;
@@ -150,7 +150,7 @@ test("simple division", (assert) => {
 
 test("static equality filters expressions", (assert) => {
   let prog = new Program("Automatic Teacher's Assistant");
-  prog.block("Auto TA addition", ({find, record, lib}) => {
+  prog.bind("Auto TA addition", ({find, record, lib}) => {
     let addition = find("addition");
     1 == addition.a + addition.b;
     return [record("success", {addition})];
@@ -174,7 +174,7 @@ test("static equality filters expressions", (assert) => {
 
 test("dynamic equality filters expressions", (assert) => {
   let prog = new Program("Automatic Teacher's Assistant");
-  prog.block("Auto TA addition", ({find, record, lib}) => {
+  prog.bind("Auto TA addition", ({find, record, lib}) => {
     let addition = find("addition");
     addition.c == addition.a + addition.b;
     return [record("success", {addition})];
@@ -206,7 +206,7 @@ test("simple recursion", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     let {number} = find();
     9 > number;
     let result = number + 1;
@@ -242,7 +242,7 @@ test("test addition operator", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     let joof = find({foo: "bar"});
     return [
      joof.add("name", "JOOF")
@@ -268,14 +268,14 @@ test("transitive closure", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("Every edge is the beginning of a path.", ({find, record, lib}) => {
+  prog.bind("Every edge is the beginning of a path.", ({find, record, lib}) => {
     let from = find();
     return [
       from.add("path", from.edge)
     ];
   });
 
-  prog.block("Jump from node to node building the path.", ({find, record, lib}) => {
+  prog.bind("Jump from node to node building the path.", ({find, record, lib}) => {
     let from = find();
     let intermediate = find();
     from.edge == intermediate;
@@ -384,7 +384,7 @@ test("removal", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     find({foo: "bar"});
     return [
       record({zomg: "baz"})
@@ -418,7 +418,7 @@ test.skip("not", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, not}) => {
+  prog.bind("simple block", ({find, record, lib, not}) => {
     let person = find({tag: "person"});
     not(() => person.alive);
     return [
@@ -447,7 +447,7 @@ test("Nested attribute lookup", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     let jeff = find({tag: "bar"});
     return [
       record({zomg: jeff.dog.weight})
@@ -477,7 +477,7 @@ test("Basic not", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, not}) => {
+  prog.bind("simple block", ({find, record, lib, not}) => {
     let person = find("person");
     not(() => {
       person.age;
@@ -513,7 +513,7 @@ test("Basic aggregate", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, gather}) => {
+  prog.bind("simple block", ({find, record, lib, gather}) => {
     let person = find("person");
     let count = gather(person).count();
     return [

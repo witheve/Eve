@@ -205,7 +205,7 @@ class CanvasWatcher extends Watcher {
     this.html = this.program.attach("html") as HTMLWatcher;
 
     this.program
-      .block("Canvas roots are html elements.", ({find}) => {
+      .bind("Canvas roots are html elements.", ({find}) => {
         let canvas = find("canvas/root");
         return [canvas.add({tag: "html/element", tagname: "canvas"})]
       })
