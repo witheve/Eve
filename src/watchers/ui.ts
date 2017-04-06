@@ -94,34 +94,34 @@ export class UIWatcher extends Watcher {
 
     this.program
     // Containers
-      .block("Decorate row elements as html.", ({find, record}) => {
+      .bind("Decorate row elements as html.", ({find, record}) => {
         let elem = find("ui/row");
         return [elem.add("tag", "html/element").add("tagname", "row")];
       })
-      .block("Decorate column elements as html.", ({find, record}) => {
+      .bind("Decorate column elements as html.", ({find, record}) => {
         let elem = find("ui/column");
         return [elem.add("tag", "html/element").add("tagname", "column")];
       })
-      .block("Decorate spacer elements as html.", ({find, record}) => {
+      .bind("Decorate spacer elements as html.", ({find, record}) => {
         let elem = find("ui/spacer");
         return [elem.add("tag", "html/element").add("tagname", "spacer")];
       })
-      .block("Decorate input elements as html.", ({find, record}) => {
+      .bind("Decorate input elements as html.", ({find, record}) => {
         let elem = find("ui/input");
         return [elem.add("tag", "html/element").add("tagname", "input")];
       })
-      .block("Decorate text elements as html.", ({find, record}) => {
+      .bind("Decorate text elements as html.", ({find, record}) => {
         let elem = find("ui/text");
         return [elem.add("tag", "html/element").add("tagname", "text")];
       });
 
     // Buttons
     this.program
-      .block("Decorate button elements as html.", ({find, record}) => {
+      .bind("Decorate button elements as html.", ({find, record}) => {
         let elem = find("ui/button");
         return [elem.add("tag", "html/element").add("tagname", "div").add("class", "button")];
       })
-      .block("Decorate button elements with icons.", ({find, record}) => {
+      .bind("Decorate button elements with icons.", ({find, record}) => {
         let elem = find("ui/button");
         return [elem.add("class", "iconic").add("class", `ion-${elem.icon}`)];
       });
@@ -131,17 +131,17 @@ export class UIWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     this.program
-      .block("Decorate field tables as html.", ({find, record}) => {
+      .bind("Decorate field tables as html.", ({find, record}) => {
         let elem = find("ui/field-table");
         return [elem.add({tag: "html/element", tagname: "table", cellspacing: 0})];
       })
-      .block("Field tables have a value_row for each AV pair in their fields.", ({find, record}) => {
+      .bind("Field tables have a value_row for each AV pair in their fields.", ({find, record}) => {
         let table = find("ui/field-table");
         let {field} = table;
         let {attribute, value} = field;
         return [table.add("value_row", record({field, attribute, value}))];
       })
-      .block("If a table is editable: all attach each specific editing mode.", ({find, choose}) => {
+      .bind("If a table is editable: all attach each specific editing mode.", ({find, choose}) => {
         let table = find("ui/field-table", "ui/editable");
         return [table.add("editable", [
           // Modify existing
@@ -152,14 +152,14 @@ export class UIWatcher extends Watcher {
           "field"
         ])];
       })
-      .block("A table's fields inherit the editing mode of their table if they don't specify their own.", ({find, choose}) => {
+      .bind("A table's fields inherit the editing mode of their table if they don't specify their own.", ({find, choose}) => {
         let table = find("ui/field-table");
         let {field} = table;
         let [editable] = choose(() => field.editable, () => table.editable);
         return [field.add("editable", editable)];
       })
 
-      .block("Create a row for each unique field.", ({find, choose, record}) => {
+      .bind("Create a row for each unique field.", ({find, choose, record}) => {
         let table = find("ui/field-table");
         let {field} = table;
         return [
@@ -229,7 +229,7 @@ export class UIWatcher extends Watcher {
         return [field.remove()];
       })
 
-      .block("Each field row has an attribute and a value set.", ({find, choose, record}) => {
+      .bind("Each field row has an attribute and a value set.", ({find, choose, record}) => {
         let field_row = find("ui/field-table/row");
         let {table, field} = field_row;
         let [sort] = choose(() => field.sort, () => field.attribute, () => 1);
@@ -245,7 +245,7 @@ export class UIWatcher extends Watcher {
           ])
         ];
       })
-      .block("Create a value for each field value in the value set.", ({find, choose, record}) => {
+      .bind("Create a value for each field value in the value set.", ({find, choose, record}) => {
         let value_set = find("ui/field-table/value-set");
         let {table, field} = value_set;
         let {value_row} = table;
@@ -259,7 +259,7 @@ export class UIWatcher extends Watcher {
         ];
       })
 
-      .block("The initial value of a cell is pulled off it's value_row or field.", ({find, choose, not, lookup, record}) => {
+      .bind("The initial value of a cell is pulled off it's value_row or field.", ({find, choose, not, lookup, record}) => {
         let cell = find("ui/field-table/cell");
         let {field, value_row, column} = cell;
         let {attribute, value:initial} = lookup(value_row);
@@ -267,21 +267,21 @@ export class UIWatcher extends Watcher {
         return [cell.add("initial", initial)]
       })
 
-      .block("Draw field cells as text unless they're editable.", ({find, not}) => {
+      .bind("Draw field cells as text unless they're editable.", ({find, not}) => {
         let cell = find("ui/field-table/cell");
         let {field, column, initial} = cell;
         not(() => field.editable == column);
         return [cell.add({tag: "ui/text", text: initial})];
       })
 
-      .block("Draw field cells as inputs when they're editable.", ({find}) => {
+      .bind("Draw field cells as inputs when they're editable.", ({find}) => {
         let cell = find("ui/field-table/cell");
         let {field, column, initial} = cell;
         field.editable == column;
         return [cell.add({tag: ["ui/input", "html/autosize-input"], placeholder: `${column}...`})];
       })
 
-      .block("When a cell changes value, update the tables changes list.", ({find, lookup, record}) => {
+      .bind("When a cell changes value, update the tables changes list.", ({find, lookup, record}) => {
         let cell = find("ui/field-table/cell");
         let {table, field, column, value, value_row, initial} = cell;
         field.editable == column;
@@ -302,7 +302,7 @@ export class UIWatcher extends Watcher {
 
   autocomplete() {
     this.program
-      .block("Decorate autocompletes.", ({find, record}) => {
+      .bind("Decorate autocompletes.", ({find, record}) => {
         let autocomplete = find("ui/autocomplete");
         return [
           autocomplete.add({tag: "ui/column"}).add("children", [
@@ -310,25 +310,25 @@ export class UIWatcher extends Watcher {
           ])
         ];
       })
-      .block("Copy input placeholder.", ({find}) => {
+      .bind("Copy input placeholder.", ({find}) => {
         let input = find("ui/autocomplete/input");
         return [input.add({placeholder: input.autocomplete.placeholder})];
       })
-      .block("Copy input initial.", ({find}) => {
+      .bind("Copy input initial.", ({find}) => {
         let input = find("ui/autocomplete/input");
         return [input.add({initial: input.autocomplete.initial})];
       })
-      .block("Copy trigger focus.", ({find}) => {
+      .bind("Copy trigger focus.", ({find}) => {
         let autocomplete = find("ui/autocomplete", "html/trigger-focus");
         let input = find("ui/autocomplete/input", {autocomplete});
         return [input.add({tag: "html/trigger-focus"})];
       })
-      .block("Copy autosize input.", ({find}) => {
+      .bind("Copy autosize input.", ({find}) => {
         let autocomplete = find("ui/autocomplete", "html/autosize-input");
         let input = find("ui/autocomplete/input", {autocomplete});
         return [input.add({tag: "html/autosize-input"})];
       })
-      .block("An autocompletes value is it's input's.", ({find, choose}) => {
+      .bind("An autocompletes value is it's input's.", ({find, choose}) => {
         let input = find("ui/autocomplete/input");
         let [value] = choose(() => input.value, () => "");
         return [input.autocomplete.add("value", value)];
@@ -340,14 +340,14 @@ export class UIWatcher extends Watcher {
         return [autocomplete.remove("selected")];
       })
 
-      .block("Completions that match the current input value are matches.", ({find, lib:{string}}) => {
+      .bind("Completions that match the current input value are matches.", ({find, lib:{string}}) => {
         let autocomplete = find("ui/autocomplete");
         let {value, completion} = autocomplete;
         let ix = string.index_of(string.lowercase(completion.text), string.lowercase(value));
         return [autocomplete.add("match", completion)];
       })
 
-      .block("Show the matches in a popout beneath the input.", ({find, lookup, record}) => {
+      .bind("Show the matches in a popout beneath the input.", ({find, lookup, record}) => {
         let autocomplete = find("ui/autocomplete");
         let {match} = autocomplete;
         let {attribute, value} = lookup(match);

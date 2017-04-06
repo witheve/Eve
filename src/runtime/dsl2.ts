@@ -1637,7 +1637,7 @@ export class Program {
     this.context = new Runtime.EvaluationContext(this.index);
   }
 
-  _block(name:string, flow:LinearFlow) {
+  _bind(name:string, flow:LinearFlow) {
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
@@ -1645,9 +1645,9 @@ export class Program {
     return block;
   }
 
-  block(name:string, func:LinearFlowFunction) {
+  bind(name:string, func:LinearFlowFunction) {
     let flow = new LinearFlow(this.injectConstants(func));
-    this._block(name, flow);
+    this._bind(name, flow);
     return this;
   }
 

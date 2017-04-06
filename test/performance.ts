@@ -10,7 +10,7 @@ test("test single block performance with 10000 transactions", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
+  prog.bind("simple block", ({find, record, lib}) => {
     let person = find("person");
     let text = `name: ${person.name}`;
     return [

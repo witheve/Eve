@@ -61,7 +61,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     super.setup();
 
     this.program
-      .block("All html elements add their tags as classes", ({find, lib:{string}, record}) => {
+      .bind("All html elements add their tags as classes", ({find, lib:{string}, record}) => {
         let element = find("html/element");
         element.tag != "html/element"
         let klass = string.replace(element.tag, "/", "-");
@@ -189,7 +189,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         event.tag;
         return [event.remove()];
       })
-      .block("Inputs with an initial but no value use the initial.", ({find, choose}) => {
+      .bind("Inputs with an initial but no value use the initial.", ({find, choose}) => {
         let input = find("html/element", {tagname: "input"});
         let [value] = choose(() => input.value, () => input.initial);
         return [input.add("value", value)]

@@ -5,7 +5,7 @@ import * as test from "tape";
 test("Choose: basic", (assert) => {
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, choose}) => {
+  prog.bind("simple block", ({find, record, lib, choose}) => {
     let person = find("person");
     let [info] = choose(() => {
       person.dog;
@@ -40,7 +40,7 @@ test("Choose: basic", (assert) => {
 test("Choose: 3 branches", (assert) => {
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, choose}) => {
+  prog.bind("simple block", ({find, record, lib, choose}) => {
     let person = find("person");
     let [info] = choose(() => {
       person.dog;
@@ -97,7 +97,7 @@ test("Choose: 3 branches", (assert) => {
 test("Choose: 4 branches", (assert) => {
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, choose}) => {
+  prog.bind("simple block", ({find, record, lib, choose}) => {
     let person = find("person");
     let {boat} = person;
     let [info] = choose(() => {
@@ -215,7 +215,7 @@ test("Choose: 4 branches", (assert) => {
 // @TODO: Give this a better name when we figure out the specific issue.
 test("Choose: Busted partial identity", (assert) => {
   let prog = new Program("test");
-  prog.block("Split up our cat attributes", ({find, lookup, record}) => {
+  prog.bind("Split up our cat attributes", ({find, lookup, record}) => {
     let cat = find("cat");
     let {attribute, value} = lookup(cat);
     return [
@@ -224,7 +224,7 @@ test("Choose: Busted partial identity", (assert) => {
     ];
   })
 
-  prog.block("Create value records for each cat attribute.", ({find, lookup, choose, record}) => {
+  prog.bind("Create value records for each cat attribute.", ({find, lookup, choose, record}) => {
     let catAttribute = find("cat-attribute");
     // Tags about cats are cool.
     // @FIXME: In some (but not all) cases where the first branch matches both branches emit.
@@ -278,7 +278,7 @@ test("Choose: Busted partial identity", (assert) => {
 test("Choose: multiple return", (assert) => {
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, choose}) => {
+  prog.bind("simple block", ({find, record, lib, choose}) => {
     let person = find("person");
     let [displayName, coolness] = choose(() => {
       return [person.nickName, "cool"];
@@ -323,7 +323,7 @@ test("Choose: multiple return", (assert) => {
 test("Choose: moves only", (assert) => {
 
   let prog = new Program("test");
-  prog.block("simple block", ({find, record, choose}) => {
+  prog.bind("simple block", ({find, record, choose}) => {
     let person = find("person");
     let {name} = person;
     let [displayName] = choose(
@@ -350,7 +350,7 @@ test("Choose: moves only", (assert) => {
 
 test("Choose: post-filtering outer", (assert) => {
   let prog = new Program("test");
-  prog.block("froofy", ({find, choose, record}) => {
+  prog.bind("froofy", ({find, choose, record}) => {
     let person = find("person");
     let [display] = choose(() => person.display);
     display.name == "Ferdinand";
@@ -370,7 +370,7 @@ test("Choose: post-filtering outer", (assert) => {
 
 test("Choose: expression-only dynamic branch", (assert) => {
   let prog = new Program("test");
-  prog.block("Choose non-static expression only.", ({find, choose, record}) => {
+  prog.bind("Choose non-static expression only.", ({find, choose, record}) => {
     let guy = find("guy");
     let {radness} = guy;
     let [radometer] = choose(() => radness * 3); // This does not.
@@ -389,7 +389,7 @@ test("Choose: expression-only dynamic branch", (assert) => {
 
 test("Choose: filter and expression-only dynamic branches", (assert) => {
   let prog = new Program("test");
-  prog.block("Choose non-static expression only.", ({find, choose, record}) => {
+  prog.bind("Choose non-static expression only.", ({find, choose, record}) => {
     let guy = find("guy");
     let {radness} = guy;
     // We need to adjust the scale since radness is roughly logarithmic.
@@ -425,7 +425,7 @@ test("Choose: filter and expression-only dynamic branches", (assert) => {
 let programs = {
   "1 static": () => {
     let prog = new Program("1 static branch");
-    prog.block("simple block", ({find, choose, record}) => {
+    prog.bind("simple block", ({find, choose, record}) => {
       let foo = find("input");
       let [branch] = choose(() => 1);
       return [
@@ -437,7 +437,7 @@ let programs = {
 
   "1 dynamic": () => {
     let prog = new Program("1 dynamic branch");
-    prog.block("simple block", ({find, choose, record}) => {
+    prog.bind("simple block", ({find, choose, record}) => {
       let foo = find("input");
       let [output] = choose(() => foo.arg0);
       return [
@@ -449,7 +449,7 @@ let programs = {
 
   "1 dynamic 1 static": () => {
     let prog = new Program("1 dynamic branch");
-    prog.block("simple block", ({find, choose, record}) => {
+    prog.bind("simple block", ({find, choose, record}) => {
       let foo = find("input");
       let [output] = choose(
         () => {foo.arg0 == 1; return "one"},
@@ -464,7 +464,7 @@ let programs = {
 
   "2 dynamic": () => {
     let prog = new Program("1 dynamic branch");
-    prog.block("simple block", ({find, choose, record}) => {
+    prog.bind("simple block", ({find, choose, record}) => {
       let foo = find("input");
       let [output] = choose(
         () => {foo.arg0 == 1; return "one"},

@@ -16,7 +16,7 @@ class ShapeWatcher extends Watcher {
   //--------------------------------------------------------------------
   hexagonHTML() {
     this.program
-      .block("Draw a hexagon", ({find, choose, record, lib: {math}}) => {
+      .bind("Draw a hexagon", ({find, choose, record, lib: {math}}) => {
         let hex = find("shape/hexagon");
         let {side} = hex;
 
@@ -51,7 +51,7 @@ class ShapeWatcher extends Watcher {
         ];
       })
 
-      .block("Hexagons with border and thickness are outlined.", ({find}) => {
+      .bind("Hexagons with border and thickness are outlined.", ({find}) => {
         let hex = find("shape/hexagon");
         hex.border;
         hex.thickness;
@@ -60,7 +60,7 @@ class ShapeWatcher extends Watcher {
         ];
       })
 
-      .block("An outlined hexagon contains another hexagon inset by thickness.", ({find, record}) => {
+      .bind("An outlined hexagon contains another hexagon inset by thickness.", ({find, record}) => {
         let hex = find("shape/hexagon", "shape/outline");
         let {thickness} = hex;
         let side = hex.side - thickness;
@@ -74,7 +74,7 @@ class ShapeWatcher extends Watcher {
         ];
       })
 
-      .block("Populate hexagon with content", ({find, not}) => {
+      .bind("Populate hexagon with content", ({find, not}) => {
         let hex_body = find("shape/hexagon/body");
         not(() => hex_body.hex.tag == "shape/outline")
         let {content} = hex_body.hex;
@@ -85,7 +85,7 @@ class ShapeWatcher extends Watcher {
         ];
       })
 
-      .block("Populate an outlined hexagon's inner with content", ({find}) => {
+      .bind("Populate an outlined hexagon's inner with content", ({find}) => {
         let hex_inner = find("shape/hexagon/inner");
         return [
           hex_inner.add("content", hex_inner.outer.content)
@@ -98,7 +98,7 @@ class ShapeWatcher extends Watcher {
   //--------------------------------------------------------------------
   hexGrid() {
     // [#hex-grid cells side gap]
-    this.program.block("Decorate all the hex-grid cells as hexagons.", ({find, lib:{math}, record}) => {
+    this.program.bind("Decorate all the hex-grid cells as hexagons.", ({find, lib:{math}, record}) => {
       let hex_grid = find("shape/hex-grid");
 
       let {side, gap} = hex_grid;
@@ -130,7 +130,7 @@ class ShapeWatcher extends Watcher {
 
   hexagon() {
     this.program
-      .block("Decorate a shape/hexagon as a canvas.", ({find, choose, lib:{math}, record}) => {
+      .bind("Decorate a shape/hexagon as a canvas.", ({find, choose, lib:{math}, record}) => {
         let hex = find("shape/hexagon");
         let {side} = hex;
         let tri_height = side * 0.5;
@@ -150,12 +150,12 @@ class ShapeWatcher extends Watcher {
           ])
         ];
       })
-      .block("Copy hexagon content into it's appropriate container.", ({find, record}) => {
+      .bind("Copy hexagon content into it's appropriate container.", ({find, record}) => {
         let hex = find("shape/hexagon");
         let container = find("shape/hexagon/content", {hex});
         return [container.add("children", hex.content)];
       })
-      .block("Copy style properties onto hexagon path.", ({find, lookup}) => {
+      .bind("Copy style properties onto hexagon path.", ({find, lookup}) => {
         let hex = find("shape/hexagon");
         let path = find("shape/hexagon-path", {hex});
         let {attribute, value} = lookup(hex);
@@ -171,7 +171,7 @@ class ShapeWatcher extends Watcher {
   }
 
   squarePath() {
-    this.program.block("Decorate a shape/square-path as a canvas/path", ({find, record}) => {
+    this.program.bind("Decorate a shape/square-path as a canvas/path", ({find, record}) => {
       let square = find("shape/square-path");
       let {x, y, side} = square;
       return [
@@ -183,7 +183,7 @@ class ShapeWatcher extends Watcher {
   }
 
   hexagonPath() {
-    this.program.block("Decorate shape/hexagon-path as a canvas/path", ({find, lib:{math}, record}) => {
+    this.program.bind("Decorate shape/hexagon-path as a canvas/path", ({find, lib:{math}, record}) => {
       let hex = find("shape/hexagon-path");
       let {x, y, side} = hex;
 

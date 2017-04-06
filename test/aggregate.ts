@@ -5,7 +5,7 @@ import * as test from "tape";
 test("Aggregate: Count in choose", (assert) => {
 
   let prog = new Program("test");
-  prog.block("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test count in choose", ({find, choose, gather, record}) => {
     let person = find("person");
     let [count] = choose(
       () => gather(person.pet).count(),
@@ -55,7 +55,7 @@ test("Aggregate: Count in choose", (assert) => {
 test("Aggregate: direction-less sort", (assert) => {
 
   let prog = new Program("test");
-  prog.block("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test count in choose", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).sort();
     return [
@@ -103,7 +103,7 @@ test("Aggregate: direction-less sort", (assert) => {
 test("Aggregate: down sort", (assert) => {
 
   let prog = new Program("test");
-  prog.block("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test count in choose", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).sort("down");
     return [
@@ -154,7 +154,7 @@ test("Aggregate: down sort", (assert) => {
 test("Aggregate: multi-direction sort", (assert) => {
 
   let prog = new Program("test");
-  prog.block("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test count in choose", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name, person.age).sort("down", "up");
     return [
@@ -206,7 +206,7 @@ test("Aggregate: multi-direction sort", (assert) => {
 test("Aggregate: group sort", (assert) => {
 
   let prog = new Program("test");
-  prog.block("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test count in choose", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).per(person.age).sort("down");
     return [
@@ -436,7 +436,7 @@ test("Aggregate: committed sort with multiple groups", (assert) => {
 
 test("Sort: incremental updates", (assert) => {
   let prog = new Program("test");
-  prog.block("the block's next is the highest node sort + 1.", ({find, gather, record}) => {
+  prog.bind("the block's next is the highest node sort + 1.", ({find, gather, record}) => {
     let block = find("block");
     let {node} = block;
     2 > gather(node.sort).per(block).sort("down");
@@ -472,7 +472,7 @@ test("Sort: incremental updates", (assert) => {
 
 test("Aggregate: inside choose without outer in key", (assert) => {
   let prog = new Program("test");
-  prog.block("count the names of people", ({find, gather, record, choose}) => {
+  prog.bind("count the names of people", ({find, gather, record, choose}) => {
     let person = find("person");
     let [sort] = choose(() => {
       return gather(person.name).count();
@@ -494,7 +494,7 @@ test("Aggregate: inside choose without outer in key", (assert) => {
 
 test("Aggregate: no outer in key variations", (assert) => {
   let prog = new Program("test");
-  prog.block("count the names of people", ({find, gather, record, choose}) => {
+  prog.bind("count the names of people", ({find, gather, record, choose}) => {
     let person = find("person");
     let [sort] = choose(() => {
       return gather(person.name).count();
