@@ -14,11 +14,11 @@ export class UIWatcher extends Watcher {
           let vals = attrs[attr] as RawValue[] | RawEAV[];
            // We have a nested sub-object (i.e. a set of EAVs).
           if(vals[0].constructor === Array) {
-            let childEavs:RawEAV[] = vals as any;
-            let [childId] = childEavs[0];
+            let childEAVs:RawEAV[] = vals as any;
+            let [childId] = childEAVs[0];
             eavs.push([id, attr, childId]);
-            for(let childEav of childEavs) {
-              eavs.push(childEav);
+            for(let childEAV of childEAVs) {
+              eavs.push(childEAV);
             }
 
           } else {
