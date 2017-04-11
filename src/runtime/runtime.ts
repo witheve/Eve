@@ -3074,28 +3074,36 @@ export abstract class SortNode extends Node {
 //------------------------------------------------------------------------------
 
 export class Block {
-  constructor(public name:string, public nodes:Node[], public totalRegisters:number) {}
+  constructor(public name:string, public nodes:Node[], public totalRegisters:number) {
+    for(let ix = 0; ix < this.totalRegisters + 2; ix++) {
+      this.initial[ix] = undefined as any;
+    }
+  }
 
   results = new Iterator<Prefix>();
   initial:Prefix = createArray();
 
   exec(context:EvaluationContext, input:Change, transaction:Transaction):boolean {
     this.results.clear();
-    this.results.push(this.initial);
-    for(let ix = 0; ix < this.totalRegisters + 2; ix++) {
-      this.initial[ix] = undefined as any;
-    }
+    this.results.push(this.initial.slice());
+
     let prefix;
     let iter = this.results;
     for(let node of this.nodes) {
       node.results.clear();
-      if(iter.length === 0) return false;
-      while((prefix = iter.next()) !== undefined) {
-        context.tracer.node(node, prefix);
-        let valid = node.exec(context, input, prefix, transaction.transaction, transaction.round, node.results, transaction);
-        context.tracer.pop(TraceFrameType.Node);
+      if(iter.length === 0) {
+        if(node instanceof AntiJoin) {
+          node.exec(context, input, this.initial.slice(), transaction.transaction, transaction.round, node.results, transaction);
+          iter = node.results.iter();
+        }
+      } else {
+        while((prefix = iter.next()) !== undefined) {
+          context.tracer.node(node, prefix);
+          node.exec(context, input, prefix, transaction.transaction, transaction.round, node.results, transaction);
+          context.tracer.pop(TraceFrameType.Node);
+        }
+        iter = node.results.iter();
       }
-      iter = node.results.iter();
     }
 
     return true;

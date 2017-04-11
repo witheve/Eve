@@ -511,10 +511,10 @@ export class FlowLevel {
 
     for(let aggregate of this.aggregates) {
       let aggregateNode = aggregate.compile();
-      join = new Runtime.MergeAggregateFlow(join, aggregateNode, aggregate.getInputRegisters(), aggregate.getOutputRegisters());
+      join = new Runtime.MergeAggregateFlow(join, aggregateNode, aggregate.getJoinRegisters(), aggregate.getOutputRegisters());
     }
 
-    nodes.push(join)
+    nodes.push(join);
     return nodes;
   }
 
@@ -574,7 +574,7 @@ export class FlowLevel {
         let providerLevel = providerToLevel[item.ID] || 0;
         for(let input of item.getInputRegisters()) {
           let inputInfo = leveledRegisters[input.offset];
-          if(inputInfo && inputInfo.level > providerLevel) {
+          if(inputInfo && inputInfo.level >= providerLevel) {
             changedProvider = true;
             providerLevel = inputInfo.level + 1;
           }
@@ -583,17 +583,19 @@ export class FlowLevel {
         if(changedProvider) {
           providerToLevel[item.ID] = providerLevel;
           // level my outputs
-          for(let output of item.getOutputRegisters()) {
-            if(supported[output.offset]) continue;
-            let outputInfo = leveledRegisters[output.offset];
-            if(!outputInfo) {
-              outputInfo = leveledRegisters[output.offset] = {level:0, providers:[]};
-            }
-            if(outputInfo.providers.indexOf(item) === -1) {
-              outputInfo.providers.push(item);
-            }
-            if(outputInfo.level < providerLevel) {
-              outputInfo.level = providerLevel;
+          if(item.getOutputRegisters) {
+            for(let output of item.getOutputRegisters()) {
+              if(supported[output.offset]) continue;
+              let outputInfo = leveledRegisters[output.offset];
+              if(!outputInfo) {
+                outputInfo = leveledRegisters[output.offset] = {level:0, providers:[]};
+              }
+              if(outputInfo.providers.indexOf(item) === -1) {
+                outputInfo.providers.push(item);
+              }
+              if(outputInfo.level < providerLevel) {
+                outputInfo.level = providerLevel;
+              }
             }
           }
           maxLevel = Math.max(maxLevel, providerLevel);
@@ -1375,12 +1377,20 @@ export class Aggregate extends DSLBase {
     context.flow.collect(this);
   }
 
-  getInputRegisters():Register[] {
+  getJoinRegisters():Register[] {
     let {context} = this;
     let items = concatArray([], this.args);
     if(this.aggregate === Runtime.SortNode) {
       concatArray(items, this.projection);
     }
+    concatArray(items, this.group);
+    return items.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+  }
+
+  getInputRegisters():Register[] {
+    let {context} = this;
+    let items = concatArray([], this.args);
+    concatArray(items, this.projection);
     concatArray(items, this.group);
     return items.map((v) => context.getValue(v)).filter(isRegister) as Register[];
   }
