@@ -135,11 +135,15 @@ export class UIWatcher extends Watcher {
         let elem = find("ui/field-table");
         return [elem.add({tag: "html/element", tagname: "table", cellspacing: 0})];
       })
-      .bind("Field tables have a value_row for each AV pair in their fields.", ({find, record}) => {
+      .bind("Field tables have a value_row for each AV pair in their fields.", ({find, choose, record}) => {
         let table = find("ui/field-table");
         let {field} = table;
         let {attribute, value} = field;
-        return [table.add("value_row", record({field, attribute, value}))];
+        let [editable] = choose(() => { field.editable == "value"; return "true"; }, () => "false");
+        return [table.add("value_row", [
+          record({field, attribute, value})
+            .add("editable", editable)
+        ])];
       })
       .bind("If a table is editable: all attach each specific editing mode.", ({find, choose}) => {
         let table = find("ui/field-table", "ui/editable");
@@ -182,6 +186,7 @@ export class UIWatcher extends Watcher {
         return [
           table.add("value_row", [
             record("ui/field-table/value-row/new", {sort: `zz${count}`, field, attribute: field.attribute, value: ""})
+              .add("editable", "true")
           ])
         ];
       })
@@ -208,6 +213,8 @@ export class UIWatcher extends Watcher {
         return [
           table.add("field", [
             record("ui/field-table/field/new", {sort: `zz${count}`, attribute: "", value: ""})
+              .add("editable", table.editable)
+              .add("editable", ["attribute", "value"])
           ])
         ];
       })
@@ -233,11 +240,13 @@ export class UIWatcher extends Watcher {
         let field_row = find("ui/field-table/row");
         let {table, field} = field_row;
         let [sort] = choose(() => field.sort, () => field.attribute, () => 1);
+        let [editable] = choose(() => { field.editable == "attribute"; return "true" }, () => "false");
 
         return [
           field_row.add({tag: "html/element", tagname: "tr", sort}).add("children", [
             record("html/element", {sort: 1, tagname: "td", table, field}).add("children", [
               record("ui/field-table/attribute", "ui/field-table/cell", {table, field, value_row: field, column: "attribute"})
+                .add("editable", editable)
             ]),
             record("html/element", {sort: 2, tagname: "td", table, field}).add("children", [
               record("ui/field-table/value-set", "ui/column", {table, field})
@@ -250,11 +259,11 @@ export class UIWatcher extends Watcher {
         let {table, field} = value_set;
         let {value_row} = table;
         value_row.field == field;
-        let {value} = value_row;
+        let {value, editable} = value_row;
         let [sort] = choose(() => value_row.sort, () => value);
         return [
           value_set.add("children", [
-            record("ui/field-table/value", "ui/field-table/cell", {sort, table, field, value_row, column: "value"}),
+            record("ui/field-table/value", "ui/field-table/cell", {sort, table, field, value_row, column: "value", editable}),
           ])
         ];
       })
@@ -267,17 +276,15 @@ export class UIWatcher extends Watcher {
         return [cell.add("initial", initial)]
       })
 
-      .bind("Draw field cells as text unless they're editable.", ({find, not}) => {
-        let cell = find("ui/field-table/cell");
+      .bind("Draw field cells as text if they're not editable.", ({find}) => {
+        let cell = find("ui/field-table/cell", {editable: "false"});
         let {field, column, initial} = cell;
-        not(() => field.editable == column);
         return [cell.add({tag: "ui/text", text: initial})];
       })
 
       .bind("Draw field cells as inputs when they're editable.", ({find}) => {
-        let cell = find("ui/field-table/cell");
+        let cell = find("ui/field-table/cell", {editable: "true"});
         let {field, column, initial} = cell;
-        field.editable == column;
         return [cell.add({tag: ["ui/input", "html/autosize-input"], placeholder: `${column}...`})];
       })
 
