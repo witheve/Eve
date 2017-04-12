@@ -4,4 +4,5 @@ import "./antijoin";
 import "./choose";
 import "./union";
 import "./aggregate";
+import "./stdlib/math";
 // import "./performance";
