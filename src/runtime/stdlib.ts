@@ -201,6 +201,15 @@ makeMultiFunction({
   name: "math/range",
   args: {start: "number", stop: "number"},
   returns: {result: "string"},
+  estimate: function(context, prefix) {
+    let {start, stop} = this.resolve(prefix);
+    if(typeof start !== "number" || typeof stop !== "number") return 0;
+    if(start > stop) {
+      return start - stop;
+    } else {
+      return stop - start;
+    }
+  },
   apply: (start:number, stop:number, step:number = 1) => {
     if(typeof start !== "number" || typeof stop !== "number" || typeof step !== "number") return;
     if(start > stop) {
