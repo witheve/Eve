@@ -616,6 +616,11 @@ export class FlowLevel {
       levels[ix] = new FlowLevel();
     }
 
+    // @FIXME: An implementation issue in 0.3.0 causes stratified subblocks (nots, unions, and chooses) to
+    // break in several edge cases. To prevent foot-shootiness until we've resolved the problem, we disallow
+    // any orderings which are potentially dangerous.
+    let dangerousOrdering = false;
+
     // all database scans are at the first level
     for(let record of this.records) {
       levels[0].records.push(record);
@@ -625,24 +630,27 @@ export class FlowLevel {
     }
 
     // functions/nots/chooses/unions can all be in different levels
-    for(let not of this.nots) {
-      let level = providerToLevel[not.ID] || 0;
-      levels[level].nots.push(not);
-    }
-
     for(let func of this.functions) {
       if(!func) continue;
       let level = providerToLevel[func.ID] || 0;
       levels[level].functions.push(func);
     }
 
+    for(let not of this.nots) {
+      let level = providerToLevel[not.ID] || 0;
+      if(level > 0) dangerousOrdering = true;
+      levels[level].nots.push(not);
+    }
+
     for(let choose of this.chooses) {
       let level = providerToLevel[choose.ID] || 0;
+      if(level > 0) dangerousOrdering = true;
       levels[level].chooses.push(choose);
     }
 
     for(let union of this.unions) {
       let level = providerToLevel[union.ID] || 0;
+      if(level > 0) dangerousOrdering = true;
       levels[level].unions.push(union);
     }
 
@@ -655,6 +663,8 @@ export class FlowLevel {
       let level = providerToLevel[move.ID] || 0;
       levels[level].moves.push(move);
     }
+
+    if(dangerousOrdering) throw new Error(`Refusing to compile potentially dangerous ordering with stratified subblock(s). This is avoids an implementation issue in the 0.3 runtime. Until it's lifted, you can work around it by splitting any subblocks (nots, unions, or chooses) that depend directly on other subblocks into separate blocks. Please contact the Eve team on the mailing list for further assistance.`);
 
     return levels;
   }

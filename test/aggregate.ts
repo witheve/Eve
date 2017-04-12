@@ -534,32 +534,33 @@ test("Aggregate: no outer in key variations", (assert) => {
   assert.end();
 });
 
-test("Aggregate: stratified after choose", (assert) => {
-  let prog = new Program("test");
-  prog.bind("Count the next of kin", ({find, gather, choose, not, record}) => {
-    let person = find("person");
-    let [kin] = choose(() => person.family, () => person.friend, () => person.acquaintance);
-    not(() => kin.nemesis == person);
-    let count = gather(kin).per(person).count();
-    return [person.add("kin_count", count)];
-  });
+// @NOTE: The not following the choose required for this example is currently marked dangerous
+// test("Aggregate: stratified after choose", (assert) => {
+//   let prog = new Program("test");
+//   prog.bind("Count the next of kin", ({find, gather, choose, not, record}) => {
+//     let person = find("person");
+//     let [kin] = choose(() => person.family, () => person.friend, () => person.acquaintance);
+//     not(() => kin.nemesis == person);
+//     let count = gather(kin).per(person).count();
+//     return [person.add("kin_count", count)];
+//   });
 
-  verify(assert, prog, [
-    [1, "tag", "person"],
-    [1, "name", "chris"],
-    [1, "friend", "joe"],
-    [1, "friend", "fred"],
-    [1, "friend", "steve"],
-    ["steve", "nemesis", 1],
-  ], [
-    [1, "kin_count", 2, 1],
-  ]);
+//   verify(assert, prog, [
+//     [1, "tag", "person"],
+//     [1, "name", "chris"],
+//     [1, "friend", "joe"],
+//     [1, "friend", "fred"],
+//     [1, "friend", "steve"],
+//     ["steve", "nemesis", 1],
+//   ], [
+//     [1, "kin_count", 2, 1],
+//   ]);
 
-  verify(assert, prog, [
-    [1, "tag", "person", 0, -1],
-  ], [
-    [1, "kin_count", 2, 1, -1],
-  ]);
+//   verify(assert, prog, [
+//     [1, "tag", "person", 0, -1],
+//   ], [
+//     [1, "kin_count", 2, 1, -1],
+//   ]);
 
-  assert.end();
-});
+//   assert.end();
+// });
