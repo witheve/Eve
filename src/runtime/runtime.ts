@@ -88,6 +88,12 @@ export function printFlow(flow:ChooseFlow|UnionFlow):string {
 })`;
 }
 
+export function printAntiJoin(node:AntiJoin):string {
+  let left = indent(printNode(node.left), 2);
+  let right = indent(printNode(node.right), 2);
+  return `Antijoin({\n  left: ${left},\n  right: ${right}\n})`;
+}
+
 export function printNode(node:Node):string {
   if(node instanceof JoinNode) {
     return printJoinNode(node);
@@ -103,6 +109,8 @@ export function printNode(node:Node):string {
     return `BinaryJoinRight(${printNode(node.right)})`;
   } else if(node instanceof AntiJoinPresolvedRight) {
     return `AntiJoinPresolvedRight(${printNode(node.left)})`;
+  } else if(node instanceof AntiJoin) {
+    return printAntiJoin(node);
   } else {
     return "Unknown node type";
   }
