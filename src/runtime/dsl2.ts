@@ -551,7 +551,7 @@ export class FlowLevel {
             found = leveledRegisters[offset] = {level: 1, providers: []};
           }
           leveledRegisters[offset].providers.push(item);
-          providerToLevel[item.ID] = 1;
+          providerToLevel[item.ID] = 0;
           changed = true;
           maxLevel = 1;
         }
@@ -563,7 +563,7 @@ export class FlowLevel {
     concatArray(items, this.functions);
     concatArray(items, this.nots);
     concatArray(items, this.moves);
-    let remaining = items.length;
+    let remaining = items.length * items.length;
     while(changed && remaining > -1) {
       changed = false;
       for(let item of items) {
@@ -574,9 +574,9 @@ export class FlowLevel {
         let providerLevel = providerToLevel[item.ID] || 0;
         for(let input of item.getInputRegisters()) {
           let inputInfo = leveledRegisters[input.offset];
-          if(inputInfo && inputInfo.level >= providerLevel) {
+          if(inputInfo && inputInfo.level > providerLevel) {
             changedProvider = true;
-            providerLevel = inputInfo.level + 1;
+            providerLevel = inputInfo.level;
           }
         }
 
@@ -588,13 +588,13 @@ export class FlowLevel {
               if(supported[output.offset]) continue;
               let outputInfo = leveledRegisters[output.offset];
               if(!outputInfo) {
-                outputInfo = leveledRegisters[output.offset] = {level:0, providers:[]};
+                outputInfo = leveledRegisters[output.offset] = {level: 0, providers: []};
               }
               if(outputInfo.providers.indexOf(item) === -1) {
                 outputInfo.providers.push(item);
               }
-              if(outputInfo.level < providerLevel) {
-                outputInfo.level = providerLevel;
+              if(outputInfo.level <= providerLevel) {
+                outputInfo.level = providerLevel + 1;
               }
             }
           }
