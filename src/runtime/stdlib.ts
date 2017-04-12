@@ -1,4 +1,4 @@
-import {makeFunction, RawValue, AggregateNode} from "./runtime";
+import {makeFunction, makeMultiFunction, RawValue, AggregateNode} from "./runtime";
 
 //--------------------------------------------------------------------
 // Comparisons
@@ -197,20 +197,32 @@ makeFunction({
   }
 });
 
-// makeFunction({
-//   name: "math/range",
-//   args: {start: "number", stop: "number"},
-//   returns: {result: "string"},
-//   apply: (start:number, stop:number) => {
-//     if(start > stop) {
-//       [stop, start] = [start, stop];
-//     }
+makeMultiFunction({
+  name: "math/range",
+  args: {start: "number", stop: "number"},
+  returns: {result: "string"},
+  estimate: function(context, prefix) {
+    let {start, stop} = this.resolve(prefix);
+    if(typeof start !== "number" || typeof stop !== "number") return 0;
+    if(start > stop) {
+      return start - stop;
+    } else {
+      return stop - start;
+    }
+  },
+  apply: (start:number, stop:number, step:number = 1) => {
+    if(typeof start !== "number" || typeof stop !== "number" || typeof step !== "number") return;
+    if(start > stop) {
+      [stop, start] = [start, stop];
+    }
 
-//     for(let ix = start; ix < stop; ix += 1) {
-//     }
-//     return [a.toFixed(b)];
-//   }
-// });
+    let outputs = [];
+    for(let ix = start; ix <= stop; ix += step) {
+      outputs.push([ix]);
+    }
+    return outputs;
+  }
+});
 
 //--------------------------------------------------------------------
 // String

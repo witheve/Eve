@@ -511,10 +511,10 @@ export class FlowLevel {
 
     for(let aggregate of this.aggregates) {
       let aggregateNode = aggregate.compile();
-      join = new Runtime.MergeAggregateFlow(join, aggregateNode, aggregate.getInputRegisters(), aggregate.getOutputRegisters());
+      join = new Runtime.MergeAggregateFlow(join, aggregateNode, aggregate.getJoinRegisters(), aggregate.getOutputRegisters());
     }
 
-    nodes.push(join)
+    nodes.push(join);
     return nodes;
   }
 
@@ -551,7 +551,7 @@ export class FlowLevel {
             found = leveledRegisters[offset] = {level: 1, providers: []};
           }
           leveledRegisters[offset].providers.push(item);
-          providerToLevel[item.ID] = 1;
+          providerToLevel[item.ID] = 0;
           changed = true;
           maxLevel = 1;
         }
@@ -563,7 +563,7 @@ export class FlowLevel {
     concatArray(items, this.functions);
     concatArray(items, this.nots);
     concatArray(items, this.moves);
-    let remaining = items.length;
+    let remaining = items.length * items.length;
     while(changed && remaining > -1) {
       changed = false;
       for(let item of items) {
@@ -576,24 +576,26 @@ export class FlowLevel {
           let inputInfo = leveledRegisters[input.offset];
           if(inputInfo && inputInfo.level > providerLevel) {
             changedProvider = true;
-            providerLevel = inputInfo.level + 1;
+            providerLevel = inputInfo.level;
           }
         }
 
         if(changedProvider) {
           providerToLevel[item.ID] = providerLevel;
           // level my outputs
-          for(let output of item.getOutputRegisters()) {
-            if(supported[output.offset]) continue;
-            let outputInfo = leveledRegisters[output.offset];
-            if(!outputInfo) {
-              outputInfo = leveledRegisters[output.offset] = {level:0, providers:[]};
-            }
-            if(outputInfo.providers.indexOf(item) === -1) {
-              outputInfo.providers.push(item);
-            }
-            if(outputInfo.level < providerLevel) {
-              outputInfo.level = providerLevel;
+          if(item.getOutputRegisters) {
+            for(let output of item.getOutputRegisters()) {
+              if(supported[output.offset]) continue;
+              let outputInfo = leveledRegisters[output.offset];
+              if(!outputInfo) {
+                outputInfo = leveledRegisters[output.offset] = {level: 0, providers: []};
+              }
+              if(outputInfo.providers.indexOf(item) === -1) {
+                outputInfo.providers.push(item);
+              }
+              if(outputInfo.level <= providerLevel) {
+                outputInfo.level = providerLevel + 1;
+              }
             }
           }
           maxLevel = Math.max(maxLevel, providerLevel);
@@ -614,6 +616,11 @@ export class FlowLevel {
       levels[ix] = new FlowLevel();
     }
 
+    // @FIXME: An implementation issue in 0.3.0 causes stratified subblocks (nots, unions, and chooses) to
+    // break in several edge cases. To prevent foot-shootiness until we've resolved the problem, we disallow
+    // any orderings which are potentially dangerous.
+    let dangerousOrdering = false;
+
     // all database scans are at the first level
     for(let record of this.records) {
       levels[0].records.push(record);
@@ -623,24 +630,27 @@ export class FlowLevel {
     }
 
     // functions/nots/chooses/unions can all be in different levels
-    for(let not of this.nots) {
-      let level = providerToLevel[not.ID] || 0;
-      levels[level].nots.push(not);
-    }
-
     for(let func of this.functions) {
       if(!func) continue;
       let level = providerToLevel[func.ID] || 0;
       levels[level].functions.push(func);
     }
 
+    for(let not of this.nots) {
+      let level = providerToLevel[not.ID] || 0;
+      if(level > 0) dangerousOrdering = true;
+      levels[level].nots.push(not);
+    }
+
     for(let choose of this.chooses) {
       let level = providerToLevel[choose.ID] || 0;
+      if(level > 0) dangerousOrdering = true;
       levels[level].chooses.push(choose);
     }
 
     for(let union of this.unions) {
       let level = providerToLevel[union.ID] || 0;
+      if(level > 0) dangerousOrdering = true;
       levels[level].unions.push(union);
     }
 
@@ -653,6 +663,8 @@ export class FlowLevel {
       let level = providerToLevel[move.ID] || 0;
       levels[level].moves.push(move);
     }
+
+    if(dangerousOrdering) throw new Error(`Refusing to compile potentially dangerous ordering with stratified subblock(s). This is avoids an implementation issue in the 0.3 runtime. Until it's lifted, you can work around it by splitting any subblocks (nots, unions, or chooses) that depend directly on other subblocks into separate blocks. Please contact the Eve team on the mailing list for further assistance.`);
 
     return levels;
   }
@@ -1375,12 +1387,20 @@ export class Aggregate extends DSLBase {
     context.flow.collect(this);
   }
 
-  getInputRegisters():Register[] {
+  getJoinRegisters():Register[] {
     let {context} = this;
     let items = concatArray([], this.args);
     if(this.aggregate === Runtime.SortNode) {
       concatArray(items, this.projection);
     }
+    concatArray(items, this.group);
+    return items.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+  }
+
+  getInputRegisters():Register[] {
+    let {context} = this;
+    let items = concatArray([], this.args);
+    concatArray(items, this.projection);
     concatArray(items, this.group);
     return items.map((v) => context.getValue(v)).filter(isRegister) as Register[];
   }

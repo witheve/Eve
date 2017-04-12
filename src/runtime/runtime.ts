@@ -88,6 +88,12 @@ export function printFlow(flow:ChooseFlow|UnionFlow):string {
 })`;
 }
 
+export function printAntiJoin(node:AntiJoin):string {
+  let left = indent(printNode(node.left), 2);
+  let right = indent(printNode(node.right), 2);
+  return `Antijoin({\n  left: ${left},\n  right: ${right}\n})`;
+}
+
 export function printNode(node:Node):string {
   if(node instanceof JoinNode) {
     return printJoinNode(node);
@@ -103,6 +109,8 @@ export function printNode(node:Node):string {
     return `BinaryJoinRight(${printNode(node.right)})`;
   } else if(node instanceof AntiJoinPresolvedRight) {
     return `AntiJoinPresolvedRight(${printNode(node.left)})`;
+  } else if(node instanceof AntiJoin) {
+    return printAntiJoin(node);
   } else {
     return "Unknown node type";
   }
@@ -1111,9 +1119,10 @@ export class FunctionConstraint implements Constraint {
   returns:{[name:string]: string};
   argNames:string[];
   returnNames:string[];
-  apply: (this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
+  apply: (this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[]|(number|string)[][];
   estimate?:(context:EvaluationContext, prefix:Prefix, transaction:number, round:number) => number
   state?: any;
+  multi:boolean = false;
   isInput:boolean = false;
 
   fieldNames:string[];
@@ -1322,8 +1331,7 @@ export class FunctionConstraint implements Constraint {
     return inputs;
   }
 
-  unpackOutputs(outputs:undefined|RawValue[]) {
-    if(!outputs) return;
+  unpackOutputs(outputs:RawValue[]) {
     for(let ix = 0; ix < outputs.length; ix++) {
       // @NOTE: we'd like to use arenaIntern here, but because of intermediate values
       // that's not currently a possibility. We should revisit this if a practical solution
@@ -1333,19 +1341,9 @@ export class FunctionConstraint implements Constraint {
     return outputs as Prefix;
   }
 
-  resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
-    // First we build the args array to provide the apply function.
-    let inputs = this.packInputs(prefix);
-
-    // Then we actually apply it and then unpack the outputs.
-    // @FIXME: We don't have any intelligent support for not computing unnecessary returns atm.
-    // @FIXME: We only support single-return atm.
-    let outputs = this.unpackOutputs(this.apply.apply(this, inputs));
-    if(!outputs) return results;
-
+  getResult(prefix:Prefix, outputs:ID[]) {
     // Finally, if we had results, we create the result prefixes and pass them along.
     let result = createArray("functionResult") as Prefix;
-
     let ix = 0;
     for(let returnName of this.returnNames) {
       let field = this.fields[returnName];
@@ -1354,7 +1352,45 @@ export class FunctionConstraint implements Constraint {
       }
       ix++;
     }
-    results.push(result);
+    return result;
+  }
+
+  checkResult(prefix:Prefix, outputs:ID[]) {
+    // Finally, we make sure every return register matches up with our outputs.
+    // @NOTE: If we just use solvingFor then we don't know the offsets into the outputs array,
+    // so we check everything...
+    let ix = 0;
+    for(let returnName of this.returnNames) {
+      let field = this.fields[returnName];
+      let value = isRegister(field) ? prefix[field.offset] : field;
+      if(value !== outputs[ix]) {
+        return false;
+      }
+      ix++;
+    }
+    return true;
+  }
+
+  resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+    // First we build the args array to provide the apply function.
+    let inputs = this.packInputs(prefix);
+
+    // Then we actually apply it and then unpack the outputs.
+    let computed = this.apply.apply(this, inputs);
+    if(!computed) return results;
+    if(!this.multi) {
+      // If it's not a multi-returning function, it has a single result.
+      let outputs = this.unpackOutputs(computed);
+      let result = this.getResult(prefix, outputs);
+      results.push(result);
+    } else {
+      for(let row of computed) {
+        // Otherwise it has N results.
+        let outputs = this.unpackOutputs(row);
+        let result = this.getResult(prefix, outputs);
+        results.push(result);
+      }
+    }
 
     return results;
   }
@@ -1381,28 +1417,20 @@ export class FunctionConstraint implements Constraint {
     let inputs = this.packInputs(prefix);
 
     // Then we actually apply it and then unpack the outputs.
-    // @FIXME: We don't have any intelligent support for not computing unnecessary returns atm.
-    // @FIXME: We only support single-return atm.
-    let outputs = this.unpackOutputs(this.apply.apply(this, inputs));
-    if(!outputs) {
+    let computed = this.apply.apply(this, inputs);
+    if(!computed) return false;
+    if(!this.multi) {
+      // If it's not a multi-returning function we only need to check against the single result.
+      let outputs = this.unpackOutputs(computed);
+      return this.checkResult(prefix, outputs);
+    } else {
+      // Otherwise we match against any of the results.
+      for(let row of computed) {
+        let outputs = this.unpackOutputs(row);
+        if(this.checkResult(prefix, outputs)) return true;
+      }
       return false;
     }
-
-    // Finally, we make sure every return register matches up with our outputs.
-    // @NOTE: If we just use solvingFor then we don't know the offsets into the outputs array,
-    // so we check everything...
-    let ix = 0;
-    let valid = true;
-    for(let returnName of this.returnNames) {
-      let field = this.fields[returnName];
-      let value = isRegister(field) ? prefix[field.offset] : field;
-      if(value !== outputs[ix]) {
-        return false;
-      }
-      ix++;
-    }
-
-    return true;
   }
 
   acceptInput(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
@@ -1419,12 +1447,21 @@ export interface FunctionSetup {
   variadic?: boolean,
   args:{[argName:string]: string},
   returns:{[argName:string]: string},
-  apply:(this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[],
+  apply:(this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[]|(number|string)[][],
   estimate?:(index:Index, prefix:Prefix, transaction:number, round:number) => number,
-  initialState?:any
+  initialState?:any,
+  multi?: true|false;
+}
+export interface SingleFunctionSetup extends FunctionSetup {
+  apply:(this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[],
+  multi?: false
+}
+export interface MultiFunctionSetup extends FunctionSetup {
+  apply:(this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[][],
+  multi?: true
 }
 
-export function makeFunction({name, variadic = false, args, returns, apply, estimate, initialState}:FunctionSetup) {
+function _makeFunction({name, variadic = false, args, returns, apply, estimate, initialState, multi = false}:FunctionSetup) {
   class NewFunctionConstraint extends FunctionConstraint {
     static variadic = variadic;
     static filter = Object.keys(returns).length === 0;
@@ -1435,8 +1472,17 @@ export function makeFunction({name, variadic = false, args, returns, apply, esti
     returnNames = Object.keys(returns);
     apply = apply;
     state = initialState;
+    multi = multi
   }
   FunctionConstraint.register(name, NewFunctionConstraint);
+}
+
+export function makeFunction(args:SingleFunctionSetup) {
+  return _makeFunction(args);
+}
+export function makeMultiFunction(args:MultiFunctionSetup) {
+  args.multi = true;
+  return _makeFunction(args);
 }
 
 //------------------------------------------------------------------------
@@ -3074,28 +3120,36 @@ export abstract class SortNode extends Node {
 //------------------------------------------------------------------------------
 
 export class Block {
-  constructor(public name:string, public nodes:Node[], public totalRegisters:number) {}
+  constructor(public name:string, public nodes:Node[], public totalRegisters:number) {
+    for(let ix = 0; ix < this.totalRegisters + 2; ix++) {
+      this.initial[ix] = undefined as any;
+    }
+  }
 
   results = new Iterator<Prefix>();
   initial:Prefix = createArray();
 
   exec(context:EvaluationContext, input:Change, transaction:Transaction):boolean {
     this.results.clear();
-    this.results.push(this.initial);
-    for(let ix = 0; ix < this.totalRegisters + 2; ix++) {
-      this.initial[ix] = undefined as any;
-    }
+    this.results.push(this.initial.slice());
+
     let prefix;
     let iter = this.results;
     for(let node of this.nodes) {
       node.results.clear();
-      if(iter.length === 0) return false;
-      while((prefix = iter.next()) !== undefined) {
-        context.tracer.node(node, prefix);
-        let valid = node.exec(context, input, prefix, transaction.transaction, transaction.round, node.results, transaction);
-        context.tracer.pop(TraceFrameType.Node);
+      if(iter.length === 0) {
+        if(node instanceof AntiJoin) {
+          node.exec(context, input, this.initial.slice(), transaction.transaction, transaction.round, node.results, transaction);
+          iter = node.results.iter();
+        }
+      } else {
+        while((prefix = iter.next()) !== undefined) {
+          context.tracer.node(node, prefix);
+          node.exec(context, input, prefix, transaction.transaction, transaction.round, node.results, transaction);
+          context.tracer.pop(TraceFrameType.Node);
+        }
+        iter = node.results.iter();
       }
-      iter = node.results.iter();
     }
 
     return true;
