@@ -82,7 +82,6 @@ function printFlow(flow:ChooseFlow|UnionFlow|MergeAggregateFlow):string {
     let keys = "[" + flow.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
     let outs = "[" + flow.registersToMerge.map((r) => `[${r.offset}]`).join(", ") + "]";
     let name, grp, proj;
-    console.log(flow.right);
     if(flow.right instanceof AggregateNode || flow.right instanceof SortNode) {
       name = flow.right.name;
       grp = flow.right.groupRegisters;
@@ -2194,7 +2193,7 @@ export class IntermediateIndex {
       return `prefix[${reg.offset}]`;
     })
     let code = `
-      return ${items.join(' + "|" + ')};
+      return "" ${items.length ? "+" : ""} ${items.join(' + "|" + ')};
       `;
     return new Function("prefix", code) as KeyFunction;
   }
@@ -2846,10 +2845,11 @@ export abstract class AggregateNode extends Node {
     for(let count of counts) {
       // we need the total up to our current round
       if(countIx > prefixRound) break;
+      countIx++;
       if(!count) continue;
       totalCount += count;
-      countIx++;
     }
+
     if(totalCount && totalCount + prefixCount <= 0) {
       // subtract
       delta = -1;
@@ -2986,9 +2986,9 @@ export abstract class SortNode extends Node {
     for(let count of counts) {
       // we need the total up to our current round
       if(countIx > prefixRound) break;
+      countIx++;
       if(!count) continue;
       totalCount += count;
-      countIx++;
     }
     if(totalCount && totalCount + prefixCount <= 0) {
       // subtract
