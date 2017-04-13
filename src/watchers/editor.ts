@@ -1011,7 +1011,7 @@ class EditorWatcher extends Watcher {
         let padLeft = width / 2 - cell_width / 2;
         let padTop = height / 2 - cell_height / 2;
         return [
-          molecule_cell.add("style", record({width: width, height: height, "padding-left": padLeft, "padding-top": padTop}))
+          molecule_cell.add("style", record({width: `${width}px`, height: `${height}px`, "padding-left": `${padLeft}px`, "padding-top": `${padTop}px`}))
         ];
       })
 
