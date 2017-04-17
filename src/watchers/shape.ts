@@ -33,14 +33,14 @@ class ShapeWatcher extends Watcher {
         let activeBorder = `${tri_height}px`;
 
         return [
-          hex.add({tag: "html/element", tagname: "div", class: "shape-hexagon", style: record({width}), children: [
+          hex.add({tag: "html/element", tagname: "div", class: "shape-hexagon", style: record({width: `${width}px`}), children: [
             record("shape/hexagon/cap", "html/element", {sort: 1, tagname: "div", class: ["shape-hexagon-cap", "first"], style: record({
               width: 0, height: 0,
               "border": "0 solid transparent",
               "border-left-width": sideBorder, "border-right-width": sideBorder,
               "border-bottom-width": activeBorder, "border-bottom-color": background
             })}),
-            record("shape/hexagon/body", "ui/column", {hex, sort: 2, style: record({height: side, width, background}), class: "shape-hexagon-body"}),
+            record("shape/hexagon/body", "ui/column", {hex, sort: 2, style: record({height: `${side}px`, width: `${width}`, background}), class: "shape-hexagon-body"}),
             record("shape/hexagon/cap", "html/element", {sort: 3, tagname: "div", class: ["shape-hexagon-cap", "last"], style: record({
               width: 0, height: 0,
               "border": "0 solid transparent",
@@ -68,7 +68,7 @@ class ShapeWatcher extends Watcher {
         return [
           hex.add("children", [
             record("shape/hexagon", "shape/hexagon/inner", {outer: hex, sort: 4, side, background: hex.background, class: "shape-hexagon-inner", style: record({
-              position: "absolute", top: 0, left: 0, "margin-top": thickness, "margin-left": side_thickness
+              position: "absolute", top: 0, left: 0, "margin-top": `${thickness}px`, "margin-left": `${side_thickness}`
             })})
           ])
         ];
@@ -121,7 +121,7 @@ class ShapeWatcher extends Watcher {
         hex_grid.add({tag: "html/element", tagname: "div", class: "shape-hex-grid"}),
         hex_grid.add("children", [
           cell.add({
-            style: record({position: "absolute", left: x, top: y})
+            style: record({position: "absolute", left: `${x}px`, top: `${y}px`})
           })
         ])
       ];
@@ -142,11 +142,11 @@ class ShapeWatcher extends Watcher {
 
 
         return [
-          hex.add({tag: "html/element", tagname: "div", style: record({width, height})}).add("children", [
-            record("canvas/root", {sort: 1, hex, width, height}).add("children", [
+          hex.add({tag: "html/element", tagname: "div", style: record({width: `${width}px`, height: `${height}px`})}).add("children", [
+            record("canvas/root", {sort: 1, hex, width: `${width}px`, height: `${height}px`}).add("children", [
               record("shape/hexagon-path", {sort: 1, hex, x: pad, y: pad, side})
             ]),
-            record("shape/hexagon/content", "html/element", {sort: 2, hex, tagname: "div", style: record({top: tri_height, bottom: tri_height, left: pad / 2, right: pad})})
+            record("shape/hexagon/content", "html/element", {sort: 2, hex, tagname: "div", style: record({top: `${tri_height}px`, bottom: `${tri_height}px`, left: `${pad / 2}px`, right: `${pad}px`})})
           ])
         ];
       })
