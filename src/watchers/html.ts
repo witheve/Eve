@@ -55,6 +55,19 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
   sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
 
+  _addMouseEvent(eavs:(RawEAV|RawEAVC)[], tagname:string, event:MouseEvent, eventId:string) {
+    eavs.push(
+      [eventId, "tag", "html/event"],
+      [eventId, "tag", `html/event/${tagname}`],
+    );
+
+    if(event.buttons & 1) eavs.push([eventId, "button", "left"]);
+    if(event.buttons & 2) eavs.push([eventId, "button", "right"]);
+    if(event.buttons & 4) eavs.push([eventId, "button", "middle"]);
+    if(event.buttons & 8) eavs.push([eventId, "button", 4]);
+    if(event.buttons & 16) eavs.push([eventId, "button", 5]);
+  }
+
   // Event handlers
   _mouseEventHandler(tagname:string) {
     return (event:MouseEvent) => {
@@ -62,19 +75,28 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       if(!this.isInstance(target)) return;
 
       let eavs:(RawEAV|RawEAVC)[] = [];
-      let current:Element|null = target;
+
+      let directEventId = uuid();
+      let directElemId = target.__element!;
+      this._addMouseEvent(eavs, tagname, event, directEventId);
+      eavs.push(
+        [directEventId, "element", directElemId],
+        [directEventId, "tag", "html/direct-target"]
+      );
+
+      let current:Element|null = target.parentElement;
+      let elemIds = [];
       while(current && this.isInstance(current)) {
         let elemId = current.__element!;
-        let eventId = uuid();
-        eavs.push(
-          [eventId, "tag", "html/event"],
-          [eventId, "tag", `html/event/${tagname}`],
-          [eventId, "element", elemId]
-        );
-        if(current === target) {
-          eavs.push([eventId, "tag", "html/direct-target"]);
-        }
+        elemIds.push(elemId);
         current = current.parentElement;
+      }
+      if(elemIds.length) {
+        let eventId = uuid();
+        this._addMouseEvent(eavs, tagname, event, eventId);
+        for(let elemId of elemIds) {
+          eavs.push([eventId, "element", elemId]);
+        }
       }
 
       if(eavs.length) this._sendEvent(eavs);
