@@ -277,6 +277,16 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "string/codepoint_length",
+  args: {text: "string"},
+  returns: {result: "number"},
+  apply: function(text:string) {
+    if(typeof text !== "string") return;
+    return [text.length];
+  }
+});
+
 
 //--------------------------------------------------------------------
 // Random
