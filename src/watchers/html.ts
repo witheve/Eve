@@ -179,25 +179,22 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     40: "down",
     91: "meta"
   }
-  _keyEventHandler(tagname:string, printable = false) {
+
+  _keyEventHandler(tagname:string) {
     return (event:KeyboardEvent) => {
       if(event.repeat) return;
       let current:Element|null = event.target as Element;
 
       let code = event.keyCode;
       let key = this._keyMap[code];
-      if(printable) {
-        code = event.charCode;
-        key = String.fromCharCode(code);
-      }
-      if(!key) return;
 
       let eventId = createId();
       let eavs:(RawEAV|RawEAVC)[] = [
         [eventId, "tag", "html/event"],
         [eventId, "tag", `html/event/${tagname}`],
-        [eventId, "key", key]
+        [eventId, "code", code]
       ];
+      if(key) eavs.push([eventId, "key", key]);
 
       while(current && this.isInstance(current)) {
         let elemId = current.__element!;
@@ -205,7 +202,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         current = current.parentElement;
       };
 
-      if(eavs.length) this._sendEvent(eavs);
+      if(eavs.length)this._sendEvent(eavs);
     };
   }
 
@@ -291,8 +288,8 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     window.addEventListener("contextmenu", this._captureContextMenuHandler());
 
     window.addEventListener("input", this._inputEventHandler("change"));
-    window.addEventListener("keydown", this._keyEventHandler("key-press"));
-    window.addEventListener("keypress", this._keyEventHandler("key-press", true));
+    window.addEventListener("keydown", this._keyEventHandler("key-down"));
+    window.addEventListener("keyup", this._keyEventHandler("key-up"));
 
     window.addEventListener("focus", this._focusEventHandler("focus"), true);
     window.addEventListener("blur", this._focusEventHandler("blur"), true);
