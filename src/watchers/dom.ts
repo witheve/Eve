@@ -161,9 +161,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       })
       .bind("Elements with no parents are roots.", ({find, record, lib, not}) => {
         let elem = find("{{tagPrefix}}/element");
-        not(() => {
-          find("{{tagPrefix}}/element", {children: elem});
-        });
+        not(() => find("{{tagPrefix}}/element", {children: elem}));
         return [
           record("{{tagPrefix}}/root", "{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
         ];

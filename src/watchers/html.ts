@@ -1,4 +1,4 @@
-import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs, createId} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
@@ -7,6 +7,17 @@ export interface Instance extends HTMLElement {__element?: RawValue, __styles?: 
 
 export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
+
+  addExternalRoot(tag:string, element:HTMLElement) {
+    let elemId = createId();
+    let eavs:RawEAV[] = [
+      [elemId, "tag", tag],
+      [elemId, "tag", "html/root/external"]
+    ];
+
+    this.instances[elemId] = element;
+    this._sendEvent(eavs);
+  }
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElement(tagname as string);
@@ -279,6 +290,16 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     document.body.addEventListener("mouseleave", this._hoverEventHandler("hover-out"), true);
 
     this.program
+      .bind("Create an instance for each child of an external root.", ({find, record, lib, not}) => {
+        let elem = find("html/element");
+        let parent = find("html/root/external", {children: elem});
+        return [
+          record("html/instance", {element: elem, tagname: elem.tagname, parent}),
+          parent.add("tag", "html/element")
+        ];
+      });
+
+    this.program
       .commit("Remove html events.", ({find, choose}) => {
         let event = find("html/event");
         return [event.remove()];
@@ -291,10 +312,8 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       .commit("Apply input value changes.", ({find}) => {
         let {element, value} = find("html/event/change");
         return [element.remove("value").add("value", value)];
-      });
+      })
 
-
-    this.program
       .commit("When an element is entered, mark it hovered.", ({find, record}) => {
         let {element} = find("html/event/hover-in");
         return [element.add("tag", "html/hovered")];
