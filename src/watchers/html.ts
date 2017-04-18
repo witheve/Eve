@@ -47,6 +47,8 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         setImmediate(() => instance.size = (instance.value || "").length || 1);
       } else if(value === "html/trigger-focus" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.focus());
+      } else if(value === "html/trigger-blur" && instance instanceof HTMLInputElement) {
+        setImmediate(() => instance.blur());
       } else {
         instance.setAttribute(attribute, ""+maybeIntern(value));
       }
@@ -159,6 +161,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
   }
 
   _keyMap:{[key:number]: string|undefined} = { // Overrides to provide sane names for common control codes.
+    9: "tab",
     13: "enter",
     16: "shift",
     17: "control",
