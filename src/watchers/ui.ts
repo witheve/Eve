@@ -113,6 +113,18 @@ export class UIWatcher extends Watcher {
       .bind("Decorate text elements as html.", ({find, record}) => {
         let elem = find("ui/text");
         return [elem.add("tag", "html/element").add("tagname", "text")];
+      })
+      .bind("Decorate a elements as html.", ({find, record}) => {
+        let elem = find("ui/a");
+        return [elem.add("tag", "html/element").add("tagname", "a")];
+      })
+      .bind("Decorate style elements as html.", ({find, record}) => {
+        let elem = find("ui/style");
+        return [elem.add("tag", "html/element").add("tagname", "style")];
+      })
+      .bind("Decorate link elements as html.", ({find, record}) => {
+        let elem = find("ui/link");
+        return [elem.add("tag", "html/element").add("tagname", "link")];
       });
 
     // Buttons
@@ -313,7 +325,7 @@ export class UIWatcher extends Watcher {
         let autocomplete = find("ui/autocomplete");
         return [
           autocomplete.add({tag: "ui/column"}).add("children", [
-            record("ui/autocomplete/input", "ui/input", {autocomplete})
+            record("ui/autocomplete/input", "ui/input", {sort: 1, autocomplete})
           ])
         ];
       })
@@ -326,9 +338,9 @@ export class UIWatcher extends Watcher {
         return [input.add({initial: input.autocomplete.initial})];
       })
       .bind("Copy trigger focus.", ({find}) => {
-        let autocomplete = find("ui/autocomplete", "html/trigger-focus");
+        let autocomplete = find("ui/autocomplete", "html/trigger/focus");
         let input = find("ui/autocomplete/input", {autocomplete});
-        return [input.add({tag: "html/trigger-focus"})];
+        return [input.add({tag: "html/trigger/focus"})];
       })
       .bind("Copy autosize input.", ({find}) => {
         let autocomplete = find("ui/autocomplete", "html/autosize-input");
@@ -354,6 +366,13 @@ export class UIWatcher extends Watcher {
         return [autocomplete.add("match", completion)];
       })
 
+      .bind("Matches are sorted by length.", ({find, lib:{string}}) => {
+        let autocomplete = find("ui/autocomplete");
+        let {match} = autocomplete;
+        let sort = string.codepoint_length(match.text);
+        return [match.add("sort", sort)];
+      })
+
       .bind("Show the matches in a popout beneath the input.", ({find, lookup, record}) => {
         let autocomplete = find("ui/autocomplete");
         let {match} = autocomplete;
@@ -361,8 +380,8 @@ export class UIWatcher extends Watcher {
         attribute != "tag";
         return [
           autocomplete.add("children", [
-            record("ui/autocomplete/matches", "ui/column", {autocomplete}).add("children", [
-              record("ui/autocomplete/match", "ui/text", {autocomplete, match}).add(attribute, value)
+            record("ui/autocomplete/matches", "ui/column", {sort: 2, autocomplete}).add("children", [
+              record("ui/autocomplete/match", "ui/text", {autocomplete, match, sort: match.sort}).add(attribute, value)
             ])
           ])
         ];
@@ -373,43 +392,57 @@ export class UIWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     this.program
-      .commit("Clicking a match updates the selected and value of the autocomplete.", ({find}) => {
+      .commit("Clicking a match updates the selected and value of the autocomplete.", ({find, record}) => {
         let ui_match = find("ui/autocomplete/match");
-        find("html/event/click", {element: ui_match});
+        find("html/event/mouse-down", {element: ui_match});
         let {autocomplete, match} = ui_match;
-        let input = find("ui/autocomplete/input", {autocomplete});
         return [
-          autocomplete.remove("open").remove("selected").add({selected: match}),
-          input.remove("value").add("value", match.text)
+          record("ui/event/select", {autocomplete, selected: match}),
         ];
       })
-
-      .commit("Focusing an autocomplete input opens the autocomplete.", ({find}) => {
+      .commit("Focusing an autocomplete input opens the autocomplete.", ({find, record}) => {
         let input = find("ui/autocomplete/input");
         find("html/event/focus", {element: input});
-        return [input.autocomplete.add("open", "true")];
+        return [record("ui/event/open", {autocomplete: input.autocomplete})];
       })
-      .commit("If the value matches perfectly on blur, select that match.", ({find, lib:{string}}) => {
+      .commit("Blurring an autocomplete input closes the autocomplete.", ({find, record}) => {
+        let input = find("ui/autocomplete/input");
+        find("html/event/blur", {element: input});
+        return [record("ui/event/close", {autocomplete: input.autocomplete})];
+      })
+
+      .commit("If the value matches perfectly on blur, select that match.", ({find, lib:{string}, record}) => {
         let input = find("ui/autocomplete/input");
         let {value} = find("html/event/blur", {element: input});
         let {autocomplete} = input;
         let {match} = autocomplete;
         string.lowercase(match.text) == string.lowercase(value);
-        return [autocomplete.remove("open").remove("selected").add("selected", match)];
+        return [record("ui/event/select", {autocomplete, selected: match})];
       })
 
-      .commit("Clicking outside an open autocomplete closes it.", ({find, not, record}) => {
-        let autocomplete = find("ui/autocomplete");
-        find("html/event/click");
-        not(() => find("html/event/click", {element: autocomplete}));
-        return [autocomplete.remove("open")];
+      .commit("Pressing escape in an open autocomplete closes it.", ({find, not, record}) => {
+        let autocomplete = find("ui/autocomplete", {open: "true"});
+        find("html/event/key-down", {key: "escape", element: autocomplete});
+        return [record("ui/event/close", {autocomplete})];
       })
 
-      .commit("Blurring an autocomplete removes it's trigger-focus.", ({find, record}) => {
-        let autocomplete = find("ui/autocomplete", "html/trigger-focus");
-        let input = find("ui/autocomplete/input", {autocomplete});
-        let event = find("html/event/blur", {element: input});
-        return [autocomplete.remove("tag", "html/trigger-focus")];
+      .commit("Pressing enter in an open autocomplete submits it.", ({find, record}) => {
+        let autocomplete = find("ui/autocomplete", {open: "true"});
+        find("html/event/key-down", {key: "enter", element: autocomplete});
+        return [
+          record("ui/event/submit", {autocomplete}),
+          record("ui/event/close", {autocomplete})
+        ];
+      })
+      .commit("Pressing tab in an open autocomplete selects the top match.", ({find, gather, record}) => {
+        let autocomplete = find("ui/autocomplete", {open: "true"});
+        find("html/event/key-down", {key: "tab", element: autocomplete});
+        let {match} = autocomplete;
+        1 == gather(match.sort).per(autocomplete).sort();
+        return [
+          record("ui/event/select", {autocomplete, selected: match}),
+          record("ui/event/close", {autocomplete})
+        ];
       })
 
     //--------------------------------------------------------------------
@@ -425,6 +458,59 @@ export class UIWatcher extends Watcher {
           input.remove("value"),
           event.remove()
         ];
+      })
+      .commit("When an autocomplete is opened, store it's previous value.", ({find, choose, record}) => {
+        let event = find("ui/event/open");
+        let {autocomplete} = event;
+        let input = find("ui/autocomplete/input", {autocomplete});
+        let [value] = choose(() => autocomplete.previous, () => autocomplete.value, () => "");
+        return [
+          autocomplete.remove("open").add({open: "true", previous: value}),
+          input.remove("tag", "html/trigger/blur"),
+          event.remove()
+        ];
+      })
+      .commit("When an autocomplete is closed, erase it's previous value.", ({find, choose, record}) => {
+        let event = find("ui/event/close");
+        let {autocomplete} = event;
+        let input = find("ui/autocomplete/input", {autocomplete});
+        return [
+          autocomplete.remove("open").remove("previous"),
+          input.add("tag", "html/trigger/blur"),
+          autocomplete.remove("tag", "html/trigger/focus"),
+          event.remove()
+        ];
+      })
+      .commit("When an autocomplete is closed, and it's value is changed, emit a change event.", ({find, choose, record}) => {
+        let event = find("ui/event/close");
+        let {autocomplete} = event;
+        autocomplete.value != autocomplete.previous;
+        return [
+          record("ui/event/change", {autocomplete, value: autocomplete.value})
+        ];
+      })
+      .commit("Selecting a completion updates the autocomplete.", ({find, record}) => {
+        let event = find("ui/event/select");
+        let {autocomplete, selected} = event;
+        let input = find("ui/autocomplete/input", {autocomplete});
+        return [
+          input.remove("value").add("value", selected.text),
+          autocomplete.remove("selected").add("selected", selected),
+          event.remove()
+        ];
+      })
+      .commit("When a selection is made and it's different from the previous value, emit a change event.", ({find, record}) => {
+        let event = find("ui/event/select");
+        let {autocomplete, selected} = event;
+        selected.text != autocomplete.previous;
+        return [
+          record("ui/event/change", {autocomplete, value: selected.text})
+        ];
+      })
+      .commit("Clear the autocomplete change event.", ({find, record}) => {
+        let event = find("ui/event/change");
+        let {autocomplete} = event;
+        return [event.remove()];
       })
 
   }

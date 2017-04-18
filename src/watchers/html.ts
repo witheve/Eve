@@ -1,4 +1,4 @@
-import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs, createId} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
@@ -7,6 +7,17 @@ export interface Instance extends HTMLElement {__element?: RawValue, __styles?: 
 
 export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
+
+  addExternalRoot(tag:string, element:HTMLElement) {
+    let elemId = createId();
+    let eavs:RawEAV[] = [
+      [elemId, "tag", tag],
+      [elemId, "tag", "html/root/external"]
+    ];
+
+    this.instances[elemId] = element;
+    this._sendEvent(eavs);
+  }
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElement(tagname as string);
@@ -34,8 +45,10 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     } else if(attribute == "tag") {
       if(value === "html/autosize-input" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.size = (instance.value || "").length || 1);
-      } else if(value === "html/trigger-focus" && instance instanceof HTMLInputElement) {
+      } else if(value === "html/trigger/focus" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.focus());
+      } else if(value === "html/trigger/blur" && instance instanceof HTMLInputElement) {
+        setImmediate(() => instance.blur());
       } else {
         instance.setAttribute(attribute, ""+maybeIntern(value));
       }
@@ -55,6 +68,183 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
   sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
 
+  //------------------------------------------------------------------
+  // Event handlers
+  //------------------------------------------------------------------
+
+  _mouseEventHandler(tagname:string) {
+    return (event:MouseEvent) => {
+      let {target} = event;
+      if(!this.isInstance(target)) return;
+
+      let eventId = createId();
+      let eavs:(RawEAV|RawEAVC)[] = [
+        [eventId, "tag", "html/event"],
+        [eventId, "tag", `html/event/${tagname}`],
+        [eventId, "page-x", event.pageX],
+        [eventId, "page-y", event.pageY],
+        [eventId, "window-x", event.clientX],
+        [eventId, "window-y", event.clientY],
+
+        [eventId, "target", target.__element!]
+      ];
+      let buttons = event.buttons;
+      if(buttons & 1) eavs.push([eventId, "button", "left"]);
+      if(buttons & 2) eavs.push([eventId, "button", "right"]);
+      if(buttons & 4) eavs.push([eventId, "button", "middle"]);
+      if(buttons & 8) eavs.push([eventId, "button", 4]);
+      if(buttons & 16) eavs.push([eventId, "button", 5]);
+
+      let current:Element|null = target;
+      let elemIds = [];
+      while(current && this.isInstance(current)) {
+        eavs.push([eventId, "element", current.__element!]);
+        current = current.parentElement;
+      }
+      if(eavs.length) this._sendEvent(eavs);
+    };
+  }
+
+  _captureContextMenuHandler() {
+    return (event:MouseEvent) => {
+      let captureContextMenu = false;
+      let current:Element|null = event.target as Element;
+      while(current && this.isInstance(current)) {
+        if(current.listeners && current.listeners["context-menu"] === true) {
+          captureContextMenu = true;
+        }
+        current = current.parentElement;
+      }
+      if(captureContextMenu && event.button === 2) {
+        event.preventDefault();
+      }
+    };
+  }
+
+  _inputEventHandler(tagname:string) {
+    return (event:Event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        if(target.classList.contains("html-autosize-input")) {
+          target.size = target.value.length || 1;
+        }
+        let {sentInputValues} = this;
+        if(!sentInputValues[elementId]) {
+          sentInputValues[elementId] = [];
+        }
+        sentInputValues[elementId].push(target.value);
+        let eventId = createId();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event"],
+          [eventId, "tag", `html/event/${tagname}`],
+          [eventId, "element", elementId],
+          [eventId, "value", target.value]
+        ];
+        if(eavs.length) this._sendEvent(eavs);
+      }
+    }
+  }
+
+  _keyMap:{[key:number]: string|undefined} = { // Overrides to provide sane names for common control codes.
+    9: "tab",
+    13: "enter",
+    16: "shift",
+    17: "control",
+    18: "alt",
+    27: "escape",
+    37: "left",
+    38: "up",
+    39: "right",
+    40: "down",
+    91: "meta"
+  }
+
+  _keyEventHandler(tagname:string) {
+    return (event:KeyboardEvent) => {
+      if(event.repeat) return;
+      let current:Element|null = event.target as Element;
+
+      let code = event.keyCode;
+      let key = this._keyMap[code];
+
+      let eventId = createId();
+      let eavs:(RawEAV|RawEAVC)[] = [
+        [eventId, "tag", "html/event"],
+        [eventId, "tag", `html/event/${tagname}`],
+        [eventId, "key-code", code]
+      ];
+      if(key) eavs.push([eventId, "key", key]);
+
+      while(current && this.isInstance(current)) {
+        let elemId = current.__element!;
+        eavs.push([eventId, "element", elemId]);
+        current = current.parentElement;
+      };
+      if(eavs.length)this._sendEvent(eavs);
+    };
+  }
+
+  _focusEventHandler(tagname:string) {
+    return (event:FocusEvent) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        let eventId = createId();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event"],
+          [eventId, "tag", `html/event/${tagname}`],
+          [eventId, "element", elementId]
+        ];
+        if(target.value !== undefined) eavs.push([eventId, "value", target.value]);
+        if(eavs.length) this._sendEvent(eavs);
+      }
+    }
+  }
+
+  _hoverEventHandler(tagname:string) {
+    return (event:MouseEvent) => {
+      let {target} = event;
+      if(!this.isInstance(target)) return;
+
+      let eavs:(RawEAV|RawEAVC)[] = [];
+      let elemId = target.__element!;
+      if(target.listeners && target.listeners["hover"]) {
+        let eventId = createId();
+        eavs.push(
+          [eventId, "tag", "html/event"],
+          [eventId, "tag", `html/event/${tagname}`],
+          [eventId, "element", elemId]
+        );
+      }
+      if(eavs.length) this._sendEvent(eavs);
+    };
+  }
+
+  //------------------------------------------------------------------
+  // Watcher handlers
+  //------------------------------------------------------------------
+
+  exportListeners({adds, removes}:ObjectDiffs<{listener:string, elemId:ID, instanceId:RawValue}>) {
+    for(let e of Object.keys(adds)) {
+      let {listener, elemId, instanceId} = adds[e];
+      let instance = this.getInstance(instanceId)!;
+      if(!instance.listeners) instance.listeners = {};
+      instance.listeners[listener] = true;
+    }
+    for(let e of Object.keys(removes)) {
+      let {listener, elemId, instanceId} = removes[e];
+      let instance = this.getInstance(instanceId)
+      if(!instance || !instance.listeners) continue;
+      instance.listeners[listener] = false;
+    }
+  }
+
+
+  //------------------------------------------------------------------
+  // Setup
+  //------------------------------------------------------------------
+
   setup() {
     if(typeof window === "undefined") return;
     this.tagPrefix = "html"; // @FIXME: hacky, due to inheritance chain evaluation order.
@@ -70,123 +260,36 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         ];
       });
 
-    window.addEventListener("click", (event) => {
-      let {target} = event;
-      if(!this.isInstance(target)) return;
+    window.addEventListener("click", this._mouseEventHandler("click"));
+    window.addEventListener("dblclick", this._mouseEventHandler("double-click"));
+    window.addEventListener("mousedown", this._mouseEventHandler("mouse-down"));
+    window.addEventListener("mouseup", this._mouseEventHandler("mouse-up"));
+    window.addEventListener("contextmenu", this._captureContextMenuHandler());
 
-      let eavs:(RawEAV|RawEAVC)[] = [];
-      let current:Element|null = target;
-      while(current && this.isInstance(current)) {
-        let elemId = current.__element!;
-        let eventId = uuid();
+    window.addEventListener("input", this._inputEventHandler("change"));
+    window.addEventListener("keydown", this._keyEventHandler("key-down"));
+    window.addEventListener("keyup", this._keyEventHandler("key-up"));
 
-        eavs.push(
-          [eventId, "tag", "html/event/click"],
-          [eventId, "element", elemId]
-        );
-        if(current === target) {
-          eavs.push([eventId, "tag", "html/direct-target"]);
-        }
-        current = current.parentElement;
-      }
+    window.addEventListener("focus", this._focusEventHandler("focus"), true);
+    window.addEventListener("blur", this._focusEventHandler("blur"), true);
 
-      this._sendEvent(eavs);
-    });
 
-    window.addEventListener("input", (event) => {
-      let target = event.target as (Instance & HTMLInputElement);
-      let elementId = target.__element;
-      if(elementId) {
-        if(target.classList.contains("html-autosize-input")) {
-          target.size = target.value.length || 1;
-        }
-        let {sentInputValues} = this;
-        if(!sentInputValues[elementId]) {
-          sentInputValues[elementId] = [];
-        }
-        sentInputValues[elementId].push(target.value);
-        let eventId = uuid();
-        let eavs:RawEAV[] = [
-          [eventId, "tag", "html/event/change"],
-          [eventId, "element", elementId],
-          [eventId, "value", target.value]
-        ];
-        this._sendEvent(eavs);
-      }
-    });
-
-    window.addEventListener("focus", (event) => {
-      let target = event.target as (Instance & HTMLInputElement);
-      let elementId = target.__element;
-      if(elementId) {
-        let eventId = uuid();
-        let eavs:RawEAV[] = [
-          [eventId, "tag", "html/event/focus"],
-          [eventId, "element", elementId]
-        ];
-        if(target.value !== undefined) eavs.push([eventId, "value", target.value]);
-        this._sendEvent(eavs);
-      }
-    }, true);
-
-    window.addEventListener("blur", (event) => {
-      let target = event.target as (Instance & HTMLInputElement);
-      let elementId = target.__element;
-      if(elementId) {
-        let eventId = uuid();
-        let eavs:RawEAV[] = [
-          [eventId, "tag", "html/event/blur"],
-          [eventId, "element", elementId]
-        ];
-        if(target.value !== undefined) eavs.push([eventId, "value", target.value]);
-        this._sendEvent(eavs);
-      }
-    }, true);
-
-    document.body.addEventListener("mouseenter", (event) => {
-      let {target} = event;
-      if(!this.isInstance(target)) return;
-
-      let eavs:(RawEAV|RawEAVC)[] = [];
-
-      let elemId = target.__element!;
-      if(target.listeners && target.listeners["hover"]) {
-        let eventId = uuid();
-        eavs.push(
-          [eventId, "tag", "html/event/hover-in"],
-          [eventId, "element", elemId]
-        );
-      }
-
-      if(eavs.length) this._sendEvent(eavs);
-    }, true);
-
-    document.body.addEventListener("mouseleave", (event) => {
-      let {target} = event;
-      if(!this.isInstance(target)) return;
-
-      let eavs:(RawEAV|RawEAVC)[] = [];
-
-        let elemId = target.__element!;
-        if(target.listeners && target.listeners["hover"]) {
-          let eventId = uuid();
-          eavs.push(
-            [eventId, "tag", "html/event/hover-out"],
-            [eventId, "element", elemId]
-          );
-        }
-
-      if(eavs.length) this._sendEvent(eavs);
-    }, true);
+    document.body.addEventListener("mouseenter", this._hoverEventHandler("hover-in"), true);
+    document.body.addEventListener("mouseleave", this._hoverEventHandler("hover-out"), true);
 
     this.program
-      .commit("Remove input-related events.", ({find, choose}) => {
-        let [event] = choose(
-          () => find("html/event/change"),
-          () => find("html/event/focus"),
-          () => find("html/event/blur")
-        );
-        event.tag;
+      .bind("Create an instance for each child of an external root.", ({find, record, lib, not}) => {
+        let elem = find("html/element");
+        let parent = find("html/root/external", {children: elem});
+        return [
+          record("html/instance", {element: elem, tagname: elem.tagname, parent}),
+          parent.add("tag", "html/element")
+        ];
+      });
+
+    this.program
+      .commit("Remove html events.", ({find, choose}) => {
+        let event = find("html/event");
         return [event.remove()];
       })
       .bind("Inputs with an initial but no value use the initial.", ({find, choose}) => {
@@ -197,10 +300,8 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       .commit("Apply input value changes.", ({find}) => {
         let {element, value} = find("html/event/change");
         return [element.remove("value").add("value", value)];
-      });
+      })
 
-
-    this.program
       .commit("When an element is entered, mark it hovered.", ({find, record}) => {
         let {element} = find("html/event/hover-in");
         return [element.add("tag", "html/hovered")];
@@ -210,37 +311,19 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         return [element.remove("tag", "html/hovered")];
       })
 
-      .watch("When an element is hoverable, it subscribes to mouseover/mouseout", ({find, record}) => {
+      .watch("When an element is hoverable, it subscribes to mouseover/mouseout.", ({find, record}) => {
         let elemId = find("html/listener/hover");
         let instanceId = find("html/instance", {element: elemId});
-        return [
-          record({listener: "hover", elemId, instanceId})
-        ]
+        return [record({listener: "hover", elemId, instanceId})]
       })
-      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
-        for(let e of Object.keys(adds)) {
-          let {listener, elemId, instanceId} = adds[e];
-          let instance = this.getInstance(instanceId)!;
-          if(!instance.listeners) instance.listeners = {};
-          instance.listeners[listener] = true;
-        }
-        for(let e of Object.keys(removes)) {
-          let {listener, elemId, instanceId} = removes[e];
-          let instance = this.getInstance(instanceId)
-          if(!instance || !instance.listeners) continue;
-          instance.listeners[listener] = false;
-        }
-      })
+      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs))
 
-    this.program
-      .commit("Remove hover-in events", ({find}) => {
-        let event = find("html/event/hover-in");
-        return [event.remove()];
+      .watch("When an element listeners for context-menu, it prevents default on right click.", ({find, record}) => {
+        let elemId = find("html/listener/context-menu");
+        let instanceId = find("html/instance", {element: elemId});
+        return [record({listener: "context-menu", elemId, instanceId})]
       })
-      .commit("Remove hover-out events", ({find}) => {
-        let event = find("html/event/hover-out");
-        return [event.remove()];
-      });
+      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs));
   }
 }
 

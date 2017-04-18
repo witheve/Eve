@@ -36,12 +36,12 @@ export function printPrefix(prefix:Prefix) {
   return prefix.map((v) => GlobalInterner.reverse(v));
 }
 
-export function printScan(constraint:Scan) {
+function printScan(constraint:Scan) {
   return `Scan(${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)})`;
 }
 
-export function printFunction(constraint:FunctionConstraint) {
-  let params = constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]));
+function printFunction(constraint:FunctionConstraint) {
+  let params = constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v])).join(", ");
   let restParams = constraint.restFields.map(printField).join(", ");
   return `FunctionConstraint("${constraint.name}", ${params} ${restParams ? `, [${restParams}]` : ""})`;
 }
@@ -63,7 +63,7 @@ function printJoinNode(node:JoinNode) {
   return "JoinNode([\n  " + node.constraints.map(printConstraint).join("\n  ") + "\n])";
 }
 
-export function printOutputNode(node:OutputNode) {
+function printOutputNode(node:OutputNode) {
   let type;
   if(node instanceof CommitRemoveNode) type = "CommitRemove";
   else if(node instanceof CommitInsertNode) type = "Commit";
@@ -73,11 +73,36 @@ export function printOutputNode(node:OutputNode) {
   return `${type}: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
 }
 
-export function printWatchNode(node:WatchNode) {
+function printWatchNode(node:WatchNode) {
   return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
 }
 
-export function printFlow(flow:ChooseFlow|UnionFlow):string {
+function printFlow(flow:ChooseFlow|UnionFlow|MergeAggregateFlow):string {
+  if(flow instanceof MergeAggregateFlow) {
+    let keys = "[" + flow.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
+    let outs = "[" + flow.registersToMerge.map((r) => `[${r.offset}]`).join(", ") + "]";
+    let name, grp, proj;
+    if(flow.right instanceof AggregateNode || flow.right instanceof SortNode) {
+      name = flow.right.name;
+      grp = flow.right.groupRegisters;
+      proj = flow.right.projectRegisters;
+    } else if(flow.right instanceof AggregateOuterLookup && (flow.right.right instanceof AggregateNode || flow.right.right instanceof SortNode)) {
+      name = flow.right.right.name;
+      grp = flow.right.right.groupRegisters;
+      proj = flow.right.right.projectRegisters;
+    }
+    let projection = proj && "[" + proj.map((r) => `[${r.offset}]`).join(", ") + "]";
+    let group = grp && "[" + grp.map((r) => `[${r.offset}]`).join(", ") + "]";
+    return `MergeAggregateFlow({
+  aggregate: "${(flow.right as AggregateNode).name}",
+  keys: ${keys},
+  group: ${group},
+  projection: ${projection},
+  outs: ${outs},
+  left: ${indent(printNode(flow.left), 2)}
+})`;
+  }
+
   let name;
   if(flow instanceof ChooseFlow) name = "ChooseFlow";
   if(flow instanceof UnionFlow) name = "UnionFlow";
@@ -88,7 +113,7 @@ export function printFlow(flow:ChooseFlow|UnionFlow):string {
 })`;
 }
 
-export function printAntiJoin(node:AntiJoin):string {
+function printAntiJoin(node:AntiJoin):string {
   let left = indent(printNode(node.left), 2);
   let right = indent(printNode(node.right), 2);
   return `Antijoin({\n  left: ${left},\n  right: ${right}\n})`;
@@ -105,6 +130,8 @@ export function printNode(node:Node):string {
     return printFlow(node);
   } else if(node instanceof UnionFlow) {
     return printFlow(node);
+  } else if(node instanceof MergeAggregateFlow) {
+    return printFlow(node);
   } else if(node instanceof BinaryJoinRight) {
     return `BinaryJoinRight(${printNode(node.right)})`;
   } else if(node instanceof AntiJoinPresolvedRight) {
@@ -116,6 +143,12 @@ export function printNode(node:Node):string {
   }
 }
 (global as any).printNode = printNode;
+
+export function printBlock(block:Block):string {
+  let content = block.nodes.map(printNode).join(",\n");
+  return `Block("${block.name}", [\n  ${indent(content, 2)}\n])`;
+}
+(global as any).printBlock = printBlock;
 
 export function maybeReverse(value?:ID):ID|RawValue|undefined {
   if(value === undefined) return value;
@@ -2160,7 +2193,7 @@ export class IntermediateIndex {
       return `prefix[${reg.offset}]`;
     })
     let code = `
-      return ${items.join(' + "|" + ')};
+      return "" ${items.length ? "+" : ""} ${items.join(' + "|" + ')};
       `;
     return new Function("prefix", code) as KeyFunction;
   }
@@ -2775,6 +2808,7 @@ export class AggregateOuterLookup extends BinaryFlow {
 }
 
 export abstract class AggregateNode extends Node {
+  abstract name:string;
   traceType = TraceNode.Aggregate;
   groupKey:Function;
   projectKey:Function;
@@ -2811,10 +2845,11 @@ export abstract class AggregateNode extends Node {
     for(let count of counts) {
       // we need the total up to our current round
       if(countIx > prefixRound) break;
+      countIx++;
       if(!count) continue;
       totalCount += count;
-      countIx++;
     }
+
     if(totalCount && totalCount + prefixCount <= 0) {
       // subtract
       delta = -1;
@@ -2918,6 +2953,7 @@ export abstract class AggregateNode extends Node {
 //------------------------------------------------------------------------------
 
 export abstract class SortNode extends Node {
+  name = "Sort";
   traceType = TraceNode.Aggregate;
   groupKey:Function;
   projectKey:Function;
@@ -2950,9 +2986,9 @@ export abstract class SortNode extends Node {
     for(let count of counts) {
       // we need the total up to our current round
       if(countIx > prefixRound) break;
+      countIx++;
       if(!count) continue;
       totalCount += count;
-      countIx++;
     }
     if(totalCount && totalCount + prefixCount <= 0) {
       // subtract

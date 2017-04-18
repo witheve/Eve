@@ -277,6 +277,16 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "string/codepoint_length",
+  args: {text: "string"},
+  returns: {result: "number"},
+  apply: function(text:string) {
+    if(typeof text !== "string") return;
+    return [text.length];
+  }
+});
+
 
 //--------------------------------------------------------------------
 // Random
@@ -332,6 +342,7 @@ makeFunction({
 
 export type SumAggregateState = {total:number};
 export class SumAggregate extends AggregateNode {
+  name = "Sum";
   add(state:SumAggregateState, resolved:RawValue[]):any {
     state.total += resolved[0] as number;
     return state;
