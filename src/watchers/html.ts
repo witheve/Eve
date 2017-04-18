@@ -126,7 +126,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
   _captureContextMenuHandler() {
     return (event:MouseEvent) => {
-      if(!(event.button & 2)) return;
       let captureContextMenu = false;
       let current:Element|null = event.target as Element;
       while(current && this.isInstance(current)) {
