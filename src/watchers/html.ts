@@ -68,19 +68,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
   sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
 
-  _addMouseEvent(eavs:(RawEAV|RawEAVC)[], tagname:string, event:MouseEvent, eventId:string) {
-    eavs.push(
-      [eventId, "tag", "html/event"],
-      [eventId, "tag", `html/event/${tagname}`],
-    );
-
-    if(event.buttons & 1) eavs.push([eventId, "button", "left"]);
-    if(event.buttons & 2) eavs.push([eventId, "button", "right"]);
-    if(event.buttons & 4) eavs.push([eventId, "button", "middle"]);
-    if(event.buttons & 8) eavs.push([eventId, "button", 4]);
-    if(event.buttons & 16) eavs.push([eventId, "button", 5]);
-  }
-
   //------------------------------------------------------------------
   // Event handlers
   //------------------------------------------------------------------
@@ -90,35 +77,29 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       let {target} = event;
       if(!this.isInstance(target)) return;
 
-      let globalPositionId = createId();
-      let directEventId = createId();
-      let directElemId = target.__element!;
+      let eventId = createId();
       let eavs:(RawEAV|RawEAVC)[] = [
-        [globalPositionId, "tag", "html/event"],
-        [globalPositionId, "tag", "html/event/mouse-position"],
-        [globalPositionId, "page-x", event.pageX],
-        [globalPositionId, "page-y", event.pageY],
-        [globalPositionId, "window-x", event.clientX],
-        [globalPositionId, "window-y", event.clientY],
+        [eventId, "tag", "html/event"],
+        [eventId, "tag", "html/event/${tagname}"],
+        [eventId, "page-x", event.pageX],
+        [eventId, "page-y", event.pageY],
+        [eventId, "window-x", event.clientX],
+        [eventId, "window-y", event.clientY],
 
-        [directEventId, "element", directElemId],
-        [directEventId, "tag", "html/direct-target"]
+        [eventId, "target", target.__element!]
       ];
-      this._addMouseEvent(eavs, tagname, event, directEventId);
+      let buttons = event.buttons;
+      if(buttons & 1) eavs.push([eventId, "button", "left"]);
+      if(buttons & 2) eavs.push([eventId, "button", "right"]);
+      if(buttons & 4) eavs.push([eventId, "button", "middle"]);
+      if(buttons & 8) eavs.push([eventId, "button", 4]);
+      if(buttons & 16) eavs.push([eventId, "button", 5]);
 
-      let current:Element|null = target.parentElement;
+      let current:Element|null = target;
       let elemIds = [];
       while(current && this.isInstance(current)) {
-        let elemId = current.__element!;
-        elemIds.push(elemId);
+        eavs.push([eventId, "element", current.__element!]);
         current = current.parentElement;
-      }
-      if(elemIds.length) {
-        let eventId = uuid();
-        this._addMouseEvent(eavs, tagname, event, eventId);
-        for(let elemId of elemIds) {
-          eavs.push([eventId, "element", elemId]);
-        }
       }
       if(eavs.length) this._sendEvent(eavs);
     };
