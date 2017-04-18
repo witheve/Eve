@@ -90,14 +90,21 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       let {target} = event;
       if(!this.isInstance(target)) return;
 
-      let eavs:(RawEAV|RawEAVC)[] = [];
-      let directEventId = uuid();
+      let globalPositionId = createId();
+      let directEventId = createId();
       let directElemId = target.__element!;
-      this._addMouseEvent(eavs, tagname, event, directEventId);
-      eavs.push(
+      let eavs:(RawEAV|RawEAVC)[] = [
+        [globalPositionId, "tag", "html/event"],
+        [globalPositionId, "tag", "html/event/mouse-position"],
+        [globalPositionId, "page-x", event.pageX],
+        [globalPositionId, "page-y", event.pageY],
+        [globalPositionId, "window-x", event.clientX],
+        [globalPositionId, "window-y", event.clientY],
+
         [directEventId, "element", directElemId],
         [directEventId, "tag", "html/direct-target"]
-      );
+      ];
+      this._addMouseEvent(eavs, tagname, event, directEventId);
 
       let current:Element|null = target.parentElement;
       let elemIds = [];
@@ -113,7 +120,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
           eavs.push([eventId, "element", elemId]);
         }
       }
-
       if(eavs.length) this._sendEvent(eavs);
     };
   }
