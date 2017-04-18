@@ -154,7 +154,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
           sentInputValues[elementId] = [];
         }
         sentInputValues[elementId].push(target.value);
-        let eventId = uuid();
+        let eventId = createId();
         let eavs:RawEAV[] = [
           [eventId, "tag", "html/event"],
           [eventId, "tag", `html/event/${tagname}`],
@@ -192,7 +192,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       }
       if(!key) return;
 
-      let eventId = uuid();
+      let eventId = createId();
       let eavs:(RawEAV|RawEAVC)[] = [
         [eventId, "tag", "html/event"],
         [eventId, "tag", `html/event/${tagname}`],
@@ -214,7 +214,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       let target = event.target as (Instance & HTMLInputElement);
       let elementId = target.__element;
       if(elementId) {
-        let eventId = uuid();
+        let eventId = createId();
         let eavs:RawEAV[] = [
           [eventId, "tag", "html/event"],
           [eventId, "tag", `html/event/${tagname}`],
@@ -234,14 +234,13 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       let eavs:(RawEAV|RawEAVC)[] = [];
       let elemId = target.__element!;
       if(target.listeners && target.listeners["hover"]) {
-        let eventId = uuid();
+        let eventId = createId();
         eavs.push(
           [eventId, "tag", "html/event"],
-          [eventId, "tag", "html/event/${tagname}"],
+          [eventId, "tag", `html/event/${tagname}`],
           [eventId, "element", elemId]
         );
       }
-
       if(eavs.length) this._sendEvent(eavs);
     };
   }
