@@ -167,6 +167,10 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     17: "control",
     18: "alt",
     27: "escape",
+    37: "left",
+    38: "up",
+    39: "right",
+    40: "down",
     91: "meta"
   }
   _keyEventHandler(tagname:string, printable = false) {
