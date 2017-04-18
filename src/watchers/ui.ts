@@ -338,9 +338,9 @@ export class UIWatcher extends Watcher {
         return [input.add({initial: input.autocomplete.initial})];
       })
       .bind("Copy trigger focus.", ({find}) => {
-        let autocomplete = find("ui/autocomplete", "html/trigger-focus");
+        let autocomplete = find("ui/autocomplete", "html/trigger/focus");
         let input = find("ui/autocomplete/input", {autocomplete});
-        return [input.add({tag: "html/trigger-focus"})];
+        return [input.add({tag: "html/trigger/focus"})];
       })
       .bind("Copy autosize input.", ({find}) => {
         let autocomplete = find("ui/autocomplete", "html/autosize-input");
@@ -422,13 +422,13 @@ export class UIWatcher extends Watcher {
 
       .commit("Pressing escape in an open autocomplete closes it.", ({find, not, record}) => {
         let autocomplete = find("ui/autocomplete", {open: "true"});
-        find("html/event/key-press", {key: "escape", element: autocomplete});
+        find("html/event/key-down", {key: "escape", element: autocomplete});
         return [record("ui/event/close", {autocomplete})];
       })
 
       .commit("Pressing enter in an open autocomplete submits it.", ({find, record}) => {
         let autocomplete = find("ui/autocomplete", {open: "true"});
-        find("html/event/key-press", {key: "enter", element: autocomplete});
+        find("html/event/key-down", {key: "enter", element: autocomplete});
         return [
           record("ui/event/submit", {autocomplete}),
           record("ui/event/close", {autocomplete})
@@ -436,7 +436,7 @@ export class UIWatcher extends Watcher {
       })
       .commit("Pressing tab in an open autocomplete selects the top match.", ({find, gather, record}) => {
         let autocomplete = find("ui/autocomplete", {open: "true"});
-        find("html/event/key-press", {key: "tab", element: autocomplete});
+        find("html/event/key-down", {key: "tab", element: autocomplete});
         let {match} = autocomplete;
         1 == gather(match.sort).per(autocomplete).sort();
         return [
@@ -466,7 +466,7 @@ export class UIWatcher extends Watcher {
         let [value] = choose(() => autocomplete.previous, () => autocomplete.value, () => "");
         return [
           autocomplete.remove("open").add({open: "true", previous: value}),
-          input.remove("tag", "html/trigger-blur"),
+          input.remove("tag", "html/trigger/blur"),
           event.remove()
         ];
       })
@@ -476,8 +476,8 @@ export class UIWatcher extends Watcher {
         let input = find("ui/autocomplete/input", {autocomplete});
         return [
           autocomplete.remove("open").remove("previous"),
-          input.add("tag", "html/trigger-blur"),
-          autocomplete.remove("tag", "html/trigger-focus"),
+          input.add("tag", "html/trigger/blur"),
+          autocomplete.remove("tag", "html/trigger/focus"),
           event.remove()
         ];
       })

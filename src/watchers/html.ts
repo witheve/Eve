@@ -45,9 +45,9 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     } else if(attribute == "tag") {
       if(value === "html/autosize-input" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.size = (instance.value || "").length || 1);
-      } else if(value === "html/trigger-focus" && instance instanceof HTMLInputElement) {
+      } else if(value === "html/trigger/focus" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.focus());
-      } else if(value === "html/trigger-blur" && instance instanceof HTMLInputElement) {
+      } else if(value === "html/trigger/blur" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.blur());
       } else {
         instance.setAttribute(attribute, ""+maybeIntern(value));
@@ -80,7 +80,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       let eventId = createId();
       let eavs:(RawEAV|RawEAVC)[] = [
         [eventId, "tag", "html/event"],
-        [eventId, "tag", "html/event/${tagname}"],
+        [eventId, "tag", `html/event/${tagname}`],
         [eventId, "page-x", event.pageX],
         [eventId, "page-y", event.pageY],
         [eventId, "window-x", event.clientX],
@@ -181,7 +181,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         eavs.push([eventId, "element", elemId]);
         current = current.parentElement;
       };
-
       if(eavs.length)this._sendEvent(eavs);
     };
   }
