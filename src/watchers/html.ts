@@ -1,4 +1,4 @@
-import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
@@ -68,14 +68,16 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     if(event.buttons & 16) eavs.push([eventId, "button", 5]);
   }
 
+  //------------------------------------------------------------------
   // Event handlers
+  //------------------------------------------------------------------
+
   _mouseEventHandler(tagname:string) {
     return (event:MouseEvent) => {
       let {target} = event;
       if(!this.isInstance(target)) return;
 
       let eavs:(RawEAV|RawEAVC)[] = [];
-
       let directEventId = uuid();
       let directElemId = target.__element!;
       this._addMouseEvent(eavs, tagname, event, directEventId);
@@ -100,6 +102,23 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       }
 
       if(eavs.length) this._sendEvent(eavs);
+    };
+  }
+
+  _captureContextMenuHandler() {
+    return (event:MouseEvent) => {
+      if(!(event.button & 2)) return;
+      let captureContextMenu = false;
+      let current:Element|null = event.target as Element;
+      while(current && this.isInstance(current)) {
+        if(current.listeners && current.listeners["context-menu"] === true) {
+          captureContextMenu = true;
+        }
+        current = current.parentElement;
+      }
+      if(captureContextMenu && event.button === 2) {
+        event.preventDefault();
+      }
     };
   }
 
@@ -203,6 +222,30 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     };
   }
 
+  //------------------------------------------------------------------
+  // Watcher handlers
+  //------------------------------------------------------------------
+
+  exportListeners({adds, removes}:ObjectDiffs<{listener:string, elemId:ID, instanceId:RawValue}>) {
+    for(let e of Object.keys(adds)) {
+      let {listener, elemId, instanceId} = adds[e];
+      let instance = this.getInstance(instanceId)!;
+      if(!instance.listeners) instance.listeners = {};
+      instance.listeners[listener] = true;
+    }
+    for(let e of Object.keys(removes)) {
+      let {listener, elemId, instanceId} = removes[e];
+      let instance = this.getInstance(instanceId)
+      if(!instance || !instance.listeners) continue;
+      instance.listeners[listener] = false;
+    }
+  }
+
+
+  //------------------------------------------------------------------
+  // Setup
+  //------------------------------------------------------------------
+
   setup() {
     if(typeof window === "undefined") return;
     this.tagPrefix = "html"; // @FIXME: hacky, due to inheritance chain evaluation order.
@@ -222,6 +265,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     window.addEventListener("dblclick", this._mouseEventHandler("double-click"));
     window.addEventListener("mousedown", this._mouseEventHandler("mouse-down"));
     window.addEventListener("mouseup", this._mouseEventHandler("mouse-up"));
+    window.addEventListener("contextmenu", this._captureContextMenuHandler());
 
     window.addEventListener("input", this._inputEventHandler("change"));
     window.addEventListener("keydown", this._keyEventHandler("key-press"));
@@ -260,27 +304,19 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         return [element.remove("tag", "html/hovered")];
       })
 
-      .watch("When an element is hoverable, it subscribes to mouseover/mouseout", ({find, record}) => {
+      .watch("When an element is hoverable, it subscribes to mouseover/mouseout.", ({find, record}) => {
         let elemId = find("html/listener/hover");
         let instanceId = find("html/instance", {element: elemId});
-        return [
-          record({listener: "hover", elemId, instanceId})
-        ]
+        return [record({listener: "hover", elemId, instanceId})]
       })
-      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
-        for(let e of Object.keys(adds)) {
-          let {listener, elemId, instanceId} = adds[e];
-          let instance = this.getInstance(instanceId)!;
-          if(!instance.listeners) instance.listeners = {};
-          instance.listeners[listener] = true;
-        }
-        for(let e of Object.keys(removes)) {
-          let {listener, elemId, instanceId} = removes[e];
-          let instance = this.getInstance(instanceId)
-          if(!instance || !instance.listeners) continue;
-          instance.listeners[listener] = false;
-        }
-      });
+      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs))
+
+      .watch("When an element listeners for context-menu, it prevents default on right click.", ({find, record}) => {
+        let elemId = find("html/listener/context-menu");
+        let instanceId = find("html/instance", {element: elemId});
+        return [record({listener: "context-menu", elemId, instanceId})]
+      })
+      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs));
   }
 }
 
