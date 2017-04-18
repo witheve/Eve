@@ -172,7 +172,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       let eavs:(RawEAV|RawEAVC)[] = [
         [eventId, "tag", "html/event"],
         [eventId, "tag", `html/event/${tagname}`],
-        [eventId, "code", code]
+        [eventId, "key-code", code]
       ];
       if(key) eavs.push([eventId, "key", key]);
 
