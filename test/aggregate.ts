@@ -55,7 +55,7 @@ test("Aggregate: Count in choose", (assert) => {
 test("Aggregate: direction-less sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test direction-less sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).sort();
     return [
@@ -103,7 +103,7 @@ test("Aggregate: direction-less sort", (assert) => {
 test("Aggregate: down sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test down sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).sort("down");
     return [
@@ -154,7 +154,7 @@ test("Aggregate: down sort", (assert) => {
 test("Aggregate: multi-direction sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test multi-direction sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name, person.age).sort("down", "up");
     return [
@@ -203,10 +203,57 @@ test("Aggregate: multi-direction sort", (assert) => {
   assert.end();
 });
 
+test("Aggregate: limit query with sort and `pos <=`", (assert) => {
+  let prog = new Program("test");
+  prog.bind("limit query with sort and `pos <=`", ({find, gather}) => {
+    let person = find("person");
+    let pos = gather(person.name, person).sort();
+    pos <= 2;
+    return [
+      person.add("pos", pos)
+    ];
+  });
+
+  verify(assert, prog, [
+    ["B", "tag", "person"],
+    ["B", "name", "Jane"],
+  ], [
+    ["B", "pos", 1, 1],
+  ]);
+
+  verify(assert, prog, [
+    ["A", "tag", "person"],
+    ["A", "name", "Jane"],
+  ], [
+    ["A", "pos", 1, 1, 1],
+    ["B", "pos", 1, 1, -1],
+    ["B", "pos", 2, 1, 1],
+  ]);
+
+  verify(assert, prog, [
+    ["C", "tag", "person"],
+    ["C", "name", "Jane"],
+  ], [
+    
+  ]);
+
+  verify(assert, prog, [
+    ["D", "tag", "person"],
+    ["D", "name", "Chris"],
+  ], [
+    ["A", "pos", 1, 1, -1],
+    ["A", "pos", 2, 1, 1],
+    ["B", "pos", 2, 1, -1],
+    ["D", "pos", 1, 1, 1],
+  ]);
+
+  assert.end();
+});
+
 test("Aggregate: group sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test group sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).per(person.age).sort("down");
     return [
