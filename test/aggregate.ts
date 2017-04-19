@@ -203,12 +203,14 @@ test("Aggregate: multi-direction sort", (assert) => {
   assert.end();
 });
 
-test("Aggregate: limit query with sort and `pos <=`", (assert) => {
+test("Aggregate: limit query with sort, count and range", (assert) => {
   let prog = new Program("test");
-  prog.bind("limit query with sort and `pos <=`", ({find, gather}) => {
+
+  prog.bind("limit query with sort, count and range", ({find, gather, lib:{math}}) => {
     let person = find("person");
     let pos = gather(person.name, person).sort();
-    pos <= 2;
+    let upper = math.min(gather(pos).count(), 2);
+    pos == math.range(1, upper);
     return [
       person.add("pos", pos)
     ];
