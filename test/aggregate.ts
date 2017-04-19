@@ -233,9 +233,7 @@ test("Aggregate: limit query with sort and `pos <=`", (assert) => {
   verify(assert, prog, [
     ["C", "tag", "person"],
     ["C", "name", "Jane"],
-  ], [
-    
-  ]);
+  ], []);
 
   verify(assert, prog, [
     ["D", "tag", "person"],
