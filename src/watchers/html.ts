@@ -1,7 +1,7 @@
 import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs, createId} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
-import {v4 as uuid} from "node-uuid";
+import * as uuid from "uuid/v4";
 
 export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, listeners?: {[event: string]: boolean}}
 

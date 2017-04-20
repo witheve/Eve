@@ -1,5 +1,6 @@
 declare module "falafel";
 declare module "setimmediate";
+declare module "uuid/v4";
 
 declare module "javascript-natural-sort" {
   export = naturalSort;

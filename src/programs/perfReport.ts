@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------
 // Performance Report
 //---------------------------------------------------------------------
-import {v4 as uuid} from "node-uuid";
+import * as uuid from "uuid/v4";
 import {Program} from "../watchers/watcher";
 import {PerformanceTracker} from "../runtime/performance";
 

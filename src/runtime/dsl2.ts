@@ -10,7 +10,7 @@ import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
 import "./stdlib";
 import {SumAggregate} from "./stdlib";
-import {v4 as uuid} from "node-uuid";
+import * as uuid from "uuid/v4";
 import * as falafel from "falafel";
 
 const UNASSIGNED = -1;
