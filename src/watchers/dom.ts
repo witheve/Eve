@@ -1,5 +1,5 @@
 import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
-import {v4 as uuid} from "node-uuid";
+import {v4 as uuid} from "uuid";
 
 import naturalSort = require("javascript-natural-sort");
 

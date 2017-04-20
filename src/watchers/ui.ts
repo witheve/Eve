@@ -1,5 +1,5 @@
 import {Watcher, RawMap, RawValue, RawEAV} from "./watcher";
-import {v4 as uuid} from "node-uuid";
+import {v4 as uuid} from "uuid";
 
 export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]> {}
 
