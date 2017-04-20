@@ -1,6 +1,6 @@
 import {Watcher, RawMap, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher";
 import {HTMLWatcher} from "./html";
-import * as uuid from "uuid/v4";
+import {v4 as uuid} from "uuid";
 
 function asValue(value:RawValue) {
   if(typeof value == "string") {

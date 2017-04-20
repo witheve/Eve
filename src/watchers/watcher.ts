@@ -3,7 +3,7 @@ export {RawValue, RawEAV, RawEAVC} from "../runtime/runtime";
 import {ID, GlobalInterner, RawValue, RawEAV, RawEAVC, Change, createArray, ExportHandler} from "../runtime/runtime";
 export {Program} from "../runtime/dsl2";
 import {Program, LinearFlowFunction} from "../runtime/dsl2";
-import * as uuid from "uuid/v4";
+import {v4 as uuid} from "uuid";
 
 //------------------------------------------------------------------------------
 // Watcher

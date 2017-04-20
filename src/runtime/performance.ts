@@ -1,7 +1,7 @@
 //---------------------------------------------------------------------
 // Performance
 //---------------------------------------------------------------------
-import * as uuid from "uuid/v4";
+import {v4 as uuid} from "uuid";
 // import {Program} from "./dsl2";
 
 var globalsToTrack = ["transaction"];
