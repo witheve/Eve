@@ -534,6 +534,39 @@ test("Aggregate: no outer in key variations", (assert) => {
   assert.end();
 });
 
+test("Aggregate: Test limit", (assert) => {
+  let prog = new Program("test");
+  prog.bind("Find up to two people", ({find, gather, record, choose}) => {
+    let person = find("person");
+    gather(person).sort() <= 2;
+    return [record({person})];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [2, "tag", "person"],
+    [3, "tag", "person"],
+  ], [
+    ["A", "person", 1, 1],
+    ["B", "person", 2, 1],
+  ]);
+
+  verify(assert, prog, [
+    [1, "tag", "person", 0, -1],
+  ], [
+    ["A", "person", 1, 1, -1],
+    ["C", "person", 3, 1],
+  ]);
+
+  verify(assert, prog, [
+    [2, "tag", "person", 0, -1],
+  ], [
+    ["B", "person", 2, 1, -1],
+  ]);
+
+  assert.end();
+});
+
 // @NOTE: The not following the choose required for this example is currently marked dangerous
 // test("Aggregate: stratified after choose", (assert) => {
 //   let prog = new Program("test");
