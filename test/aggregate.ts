@@ -55,7 +55,7 @@ test("Aggregate: Count in choose", (assert) => {
 test("Aggregate: direction-less sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test direction-less sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).sort();
     return [
@@ -103,7 +103,7 @@ test("Aggregate: direction-less sort", (assert) => {
 test("Aggregate: down sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test down sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).sort("down");
     return [
@@ -154,7 +154,7 @@ test("Aggregate: down sort", (assert) => {
 test("Aggregate: multi-direction sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test multi-direction sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name, person.age).sort("down", "up");
     return [
@@ -206,7 +206,7 @@ test("Aggregate: multi-direction sort", (assert) => {
 test("Aggregate: group sort", (assert) => {
 
   let prog = new Program("test");
-  prog.bind("test count in choose", ({find, choose, gather, record}) => {
+  prog.bind("test group sort", ({find, choose, gather, record}) => {
     let person = find("person");
     let pos = gather(person.name).per(person.age).sort("down");
     return [
