@@ -536,7 +536,7 @@ test("Aggregate: no outer in key variations", (assert) => {
 
 test("Aggregate: Test limit", (assert) => {
   let prog = new Program("test");
-  prog.bind("count the names of people", ({find, gather, record, choose}) => {
+  prog.bind("Find up to two people", ({find, gather, record, choose}) => {
     let person = find("person");
     gather(person).sort() <= 2;
     return [record({person})];
