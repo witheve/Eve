@@ -1,7 +1,7 @@
 import {Watcher, Program, RawMap, RawValue, RawEAVC} from "./watcher";
 import {v4 as uuid} from "uuid";
 
-import UIWatcher from "../watchers/ui";
+import {UIWatcher} from "../watchers/ui";
 
 interface Attrs extends RawMap<RawValue> {}
 
@@ -19,7 +19,7 @@ function collapse<T extends any[]>(...args:T[]):T {
   return all;
 }
 
-export default class TagBrowserWatcher extends Watcher {
+export class TagBrowserWatcher extends Watcher {
   browser:Program = this.createTagBrowser();
 
   setup() {
@@ -322,3 +322,4 @@ export default class TagBrowserWatcher extends Watcher {
   }
 }
 
+Watcher.register("tag browser", TagBrowserWatcher);

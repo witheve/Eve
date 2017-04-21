@@ -11,7 +11,7 @@ export interface CompilationContext {
   variables: {[id:string]: Reference},
 }
 
-export default class CompilerWatcher extends Watcher {
+export class CompilerWatcher extends Watcher {
 
   blocksToCompile:{[blockID:string]: boolean} = {};
   blocksToRemove:{[blockID:string]: boolean} = {};
@@ -461,3 +461,5 @@ export default class CompilerWatcher extends Watcher {
 
   }
 }
+
+Watcher.register("compiler", CompilerWatcher);

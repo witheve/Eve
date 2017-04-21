@@ -5,7 +5,7 @@ import {v4 as uuid} from "uuid";
 
 export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, listeners?: {[event: string]: boolean}}
 
-export default class HTMLWatcher extends DOMWatcher<Instance> {
+export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
 
   addExternalRoot(tag:string, element:HTMLElement) {
@@ -326,3 +326,5 @@ export default class HTMLWatcher extends DOMWatcher<Instance> {
       .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs));
   }
 }
+
+Watcher.register("html", HTMLWatcher);
