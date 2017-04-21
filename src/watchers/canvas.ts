@@ -1,5 +1,5 @@
 import {Watcher, RawMap, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher";
-import {HTMLWatcher} from "./html";
+import HTMLWatcher from "./html";
 import {v4 as uuid} from "uuid";
 
 function asValue(value:RawValue) {
@@ -40,7 +40,7 @@ export interface Operation {type: OperationType, args:any, paths:RawValue[]};
 // {fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, lineCap: "butt", lineJoin: "miter"}
 export interface PathStyle {[key:string]: RawValue|undefined, fillStyle?:string, strokeStyle?:string, lineWidth?:number, lineCap?:string, lineJoin?: string };
 
-class CanvasWatcher extends Watcher {
+export default class CanvasWatcher extends Watcher {
   html:HTMLWatcher;
   canvases:RawMap<RawValue[]|undefined> = {};
   paths:RawMap<RawValue[]|undefined> = {};
@@ -392,8 +392,6 @@ class CanvasWatcher extends Watcher {
     console.log(this);
   }
 }
-
-Watcher.register("canvas", CanvasWatcher);
 
 /*
  * [#canvas/root width height children:

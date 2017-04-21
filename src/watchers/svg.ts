@@ -1,10 +1,9 @@
 import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 
-interface Instance extends SVGElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
+export interface Instance extends SVGElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
 
-
-class SVGWatcher extends DOMWatcher<Instance> {
+export default class SVGWatcher extends DOMWatcher<Instance> {
   tagPrefix = "svg";
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
@@ -36,5 +35,3 @@ class SVGWatcher extends DOMWatcher<Instance> {
     super.setup();
   }
 }
-
-Watcher.register("svg", SVGWatcher);

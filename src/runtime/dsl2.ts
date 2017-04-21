@@ -1751,9 +1751,6 @@ export class Program {
   }
 
   attach(id:string) {
-    try {
-      require(`../watchers/${id}.js`); // allow webpack to find watcher modules
-    } catch (e) { }
     let WatcherConstructor = Watcher.get(id);
     if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
     if(this.watchers[id]) return this.watchers[id];

@@ -3,9 +3,9 @@
 //--------------------------------------------------------------------
 
 import {Watcher, Program, RawMap, RawValue, RawEAV, forwardDiffs, appendAsEAVs, createId} from "../watchers/watcher";
-import {CompilerWatcher} from "../watchers/compiler";
+import CompilerWatcher from "../watchers/compiler";
 
-class EditorWatcher extends Watcher {
+export default class EditorWatcher extends Watcher {
   editor: Program;
   setup() {
     this.editor = this.createEditor();
@@ -1350,5 +1350,3 @@ class EditorWatcher extends Watcher {
       })
   }
 }
-
-Watcher.register("editor", EditorWatcher);

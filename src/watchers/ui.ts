@@ -3,7 +3,7 @@ import {v4 as uuid} from "uuid";
 
 export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]> {}
 
-export class UIWatcher extends Watcher {
+export default class UIWatcher extends Watcher {
   protected static _addAttrs(id:string, attrs?: Attrs, eavs:RawEAV[] = []) {
     if(attrs) {
       for(let attr in attrs) {
@@ -516,5 +516,3 @@ export class UIWatcher extends Watcher {
   }
 
 }
-
-Watcher.register("ui", UIWatcher);
