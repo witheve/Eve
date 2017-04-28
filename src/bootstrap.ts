@@ -1,6 +1,7 @@
 import "setimmediate";
 import {Program} from "./runtime/dsl2";
 import * as testUtil from "../test/util";
+import "./parser/parser";
 
 // let assert = {};
 // function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
@@ -25,4 +26,4 @@ import * as testUtil from "../test/util";
 // import "./programs/canvas-demo";
 // import "./programs/shape-demo";
 // import "./programs/ui-demo";
-import "./programs/editor-demo";
+// import "./programs/editor-demo";
