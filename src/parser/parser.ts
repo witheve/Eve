@@ -1509,6 +1509,14 @@ export function toFacts(eavs:any[], block:any) {
     eavs.push([varId, "tag", "eve/compiler/var"]);
   }
 
+  for(let [left, right] of block.equalities) {
+    let eqId = uuid();
+    eavs.push([eqId, "tag", "eve/compiler/equality"]);
+    eavs.push([eqId, "left", asFactValue(vars, left)]);
+    eavs.push([eqId, "right", asFactValue(vars, right)]);
+    eavs.push([blockId, "constraint", eqId]);
+  }
+
   for(let scanLike of block.scanLike) {
     switch(scanLike.type) {
       case "record":
@@ -1541,12 +1549,35 @@ export function toFacts(eavs:any[], block:any) {
         eavs.push([argId, "value", asFactValue(vars, arg)]);
         ix++;
       }
-      let returnId = uuid();
-      eavs.push([exprId, "return", returnId]);
-      eavs.push([returnId, "index", 1]);
-      eavs.push([returnId, "value", asFactValue(vars, expr.variable)]);
+      if(expr.variable) {
+        let returnId = uuid();
+        eavs.push([exprId, "return", returnId]);
+        eavs.push([returnId, "index", 1]);
+        eavs.push([returnId, "value", asFactValue(vars, expr.variable)]);
+      }
     } else if(expr.type === "functionRecord") {
       // @TODO
+      for(let arg of expr.record.attributes) {
+        let argId = uuid();
+        eavs.push([exprId, "arg", argId]);
+        eavs.push([argId, "name", arg.attribute]);
+        eavs.push([argId, "value", asFactValue(vars, arg.value)]);
+      }
+      if(expr.returns) {
+        let ix = 1;
+        for(let ret of expr.returns) {
+          let returnId = uuid();
+          eavs.push([exprId, "return", returnId]);
+          eavs.push([returnId, "index", ix]);
+          eavs.push([returnId, "value", asFactValue(vars, ret.value)]);
+          ix++;
+        }
+      } else if(expr.variable) {
+        let returnId = uuid();
+        eavs.push([exprId, "return", returnId]);
+        eavs.push([returnId, "index", 1]);
+        eavs.push([returnId, "value", asFactValue(vars, expr.variable)]);
+      }
     }
   }
 

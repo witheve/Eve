@@ -3,7 +3,7 @@
 //--------------------------------------------------------------------
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
-import {ID, Block} from "../runtime/runtime";
+import {ID, Block, FunctionConstraint, printBlock} from "../runtime/runtime";
 import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, Fn, WatchFlow, CommitFlow} from "../runtime/dsl2";
 import "setimmediate";
 
@@ -184,6 +184,11 @@ export class CompilerWatcher extends Watcher {
           let fn = new Fn(flow.context, constraint.op, args, returns);
         })
       }
+      if(constraint.type === "equality") {
+        inContext(flow, () => {
+          context.equality(compileValue(compile, context, constraint.left) as Value, compileValue(compile, context, constraint.right) as Value);
+        })
+      }
     }
     let block = (this.programToInjectInto as any)[`_${type}`](name, flow);
     if(type === "watch" && item.watcher) {
@@ -194,7 +199,7 @@ export class CompilerWatcher extends Watcher {
         this.programToInjectInto.asDiffs(func);
       }
     }
-    console.log("Compiled: ", block);
+    console.log("Compiled: ", printBlock(block));
     return block;
   }
 
@@ -286,6 +291,25 @@ export class CompilerWatcher extends Watcher {
       }
     })
 
+    me.watch("get equalities", ({find, record}) => {
+      let eq = find("eve/compiler/equality");
+      return [
+        record({eq, left:eq.left, right:eq.right})
+      ]
+    })
+
+    me.asObjects<{eq:string, left:RawValue, right:RawValue}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {eq, left, right} = adds[key];
+        items[eq] = {type: "equality", left, right};
+      }
+      for(let key in removes) {
+        let {eq} = removes[key];
+        items[eq] = undefined;
+      }
+    })
+
     me.watch("get lookups", ({find, record}) => {
       let lookup = find("eve/compiler/lookup");
       let block = find("eve/compiler/block", {constraint: lookup});
@@ -361,6 +385,51 @@ export class CompilerWatcher extends Watcher {
         if(!found) { continue; }
         if(found.args[index - 1] == value) {
           found.args[index - 1] = undefined;
+        }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get expression named args", ({find, record}) => {
+      let expr = find("eve/compiler/expression");
+      let block = find("eve/compiler/block", {constraint: expr});
+      let {arg} = expr;
+      return [
+        record({block, id:expr, name:arg.name, value:arg.value})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, name:string, value:RawValue}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, name, value} = adds[key];
+        let found = items[id];
+        if(!found) { throw new Error("args for a non existent expression"); }
+        let {argNames, returnNames} = FunctionConstraint.fetchInfo(found.op)
+        let argIx = argNames.indexOf(name);
+        let retIx = returnNames.indexOf(name);
+        if(argIx > -1) {
+          found.args[argIx] = value;
+        } else if(retIx > -1) {
+          found.returns[retIx] = value;
+        } else {
+          console.error(`Unknown arg for expression: ${found.op}[${name}]`);
+        }
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id, name, value} = removes[key];
+        let found = items[id];
+        if(!found) { continue; }
+        let {argNames, returnNames} = FunctionConstraint.fetchInfo(found.op)
+        let argIx = argNames.indexOf(name);
+        let retIx = returnNames.indexOf(name);
+        if(argIx > -1) {
+          found.args[argIx] = undefined;
+        } else if(retIx > -1) {
+          found.returns[retIx] = undefined;
+        } else {
+          console.error(`Unknown arg for expression: ${found.op}[${name}]`);
         }
         this.queue(block);
       }

@@ -1124,6 +1124,8 @@ export class FunctionConstraint implements Constraint {
 
   static filter = false;
   static variadic = false;
+  static argNames:string[];
+  static returnNames:string[];
   static fetchInfo(name:string):typeof FunctionConstraint {
     let info = FunctionConstraint.registered[name];
     if(!info) throw new Error("No function info for: " + name);
@@ -1498,11 +1500,13 @@ function _makeFunction({name, variadic = false, args, returns, apply, estimate, 
   class NewFunctionConstraint extends FunctionConstraint {
     static variadic = variadic;
     static filter = Object.keys(returns).length === 0;
+    static argNames = Object.keys(args);
+    static returnNames = Object.keys(returns);
     name = name;
     args = args;
-    returns = returns;
     argNames = Object.keys(args);
     returnNames = Object.keys(returns);
+    returns = returns;
     apply = apply;
     state = initialState;
     multi = multi

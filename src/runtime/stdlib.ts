@@ -172,10 +172,10 @@ makeFunction({
 
 makeFunction({
   name: "math/mod",
-  args: {a: "number", b: "number"},
+  args: {value: "number", by: "number"},
   returns: {result: "number"},
-  apply: (a:number, b:number) => {
-    return [a % b];
+  apply: (value:number, by:number) => {
+    return [value % by];
   }
 });
 
