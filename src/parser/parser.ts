@@ -1298,7 +1298,7 @@ export class Parser extends chev.Parser {
         return args[0];
       }
       let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
-      let expression = makeNode("expression", {op: "eve-internal/concat", args, variable, from});
+      let expression = makeNode("expression", {op: "eve/internal/concat", args, variable, from});
       self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return expression;
@@ -1429,6 +1429,7 @@ export function parseDoc(doc:string, docId = `doc|${docIx++}`) {
 
   let eavs:any[] = [];
   for(let block of parsedBlocks) {
+    console.log(block);
     toFacts(eavs, block);
   }
 
@@ -1523,6 +1524,25 @@ export function toFacts(eavs:any[], block:any) {
         eavs.push([lookupId, "value", asFactValue(vars, scanLike.value)]);
         eavs.push([blockId, "constraint", lookupId]);
         break;
+    }
+  }
+
+  for(let expr of block.expressions) {
+    console.log(expr);
+    let exprId = uuid();
+    eavs.push([exprId, "tag", "eve/compiler/expression"]);
+    eavs.push([exprId, "op", expr.op]);
+    if(expr.type === "expression") {
+      let ix = 1;
+      for(let arg of expr.args) {
+        let argId = uuid();
+        eavs.push([exprId, "arg", argId]);
+        eavs.push([argId, "index", ix]);
+        eavs.push([argId, "value", asFactValue(arg)]);
+        ix++;
+      }
+    } else if(expr.type === "functionRecord") {
+
     }
   }
 
