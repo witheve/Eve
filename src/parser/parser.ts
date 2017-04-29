@@ -7,6 +7,7 @@ import * as chev from "chevrotain";
 import {parserErrors, EveError} from "./errors";
 var {Lexer} = chev;
 export var Token = chev.Token;
+import * as uuid from "uuid";
 
 //-----------------------------------------------------------
 // Utils
@@ -152,7 +153,6 @@ export class Keyword extends Token {
 export class Lookup extends Keyword { static PATTERN = /lookup(?=\[)/; label = "lookup"; }
 export class Action extends Keyword { static PATTERN = /bind|commit/; label = "action"; }
 export class Search extends Keyword { static PATTERN = /search/; label = "search"; }
-export class Is extends Keyword { static PATTERN = /is/; label = "is"; }
 export class If extends Keyword { static PATTERN = /if/; label = "if"; }
 export class Else extends Keyword { static PATTERN = /else/; label = "else"; }
 export class Then extends Keyword { static PATTERN = /then/; label = "then"; }
@@ -164,7 +164,6 @@ export class Num extends Token { static PATTERN = /-?\d+(\.\d+)?/; label = "num"
 export class None extends Keyword { static PATTERN = /none/; label = "none"; }
 export class Name extends Token { static PATTERN = /@/; label = "name"; }
 export class Tag extends Token { static PATTERN = /#/; label = "tag"; }
-export class Uuid extends Token { static PATTERN = /⦑.*⦒/; label = "uuid"; }
 
 // Delimiters
 export class OpenBracket extends Token { static PATTERN = /\[/; label = "open-bracket"; }
@@ -210,8 +209,8 @@ export class WhiteSpace extends Token {
 let codeTokens: any[] = [
   CloseFence, WhiteSpace, CommentLine, OpenBracket, CloseBracket, OpenParen,
   CloseParen, StringEmbedClose, OpenString, Bool, Action, Set, Equality, Dot, Pipe, Merge,
-  Mutate, Comparison, Num,  Search, Lookup, Is, If, Else, Then,
-  Not, None, Name, Tag, Uuid, FunctionIdentifier, Identifier, AddInfix, MultInfix
+  Mutate, Comparison, Num,  Search, Lookup, If, Else, Then,
+  Not, None, Name, Tag, FunctionIdentifier, Identifier, AddInfix, MultInfix
 ];
 
 let stringEmbedTokens: any[] = [StringEmbedClose].concat(codeTokens);
@@ -390,7 +389,6 @@ export class Parser extends chev.Parser {
   attributeMutator: any;
   singularAttribute: any;
   stringInterpolation: any;
-  isExpression: any;
 
 
   constructor(input:any) {
@@ -1076,28 +1074,6 @@ export class Parser extends chev.Parser {
       return;
     });
 
-    self.RULE("isExpression", () => {
-      let op = self.CONSUME(Is);
-      let from: NodeDependent[] = [
-        op,
-        self.CONSUME(OpenParen)
-      ]
-      let expressions:any[] = [];
-      self.MANY(() => {
-        let comparison: any = self.SUBRULE(self.comparison, [true]);
-        for(let expression of comparison.expressions) {
-          from.push(expression as ParseNode);
-          expressions.push(asValue(expression));
-        }
-      });
-      from.push(self.CONSUME(CloseParen));
-      let variable = self.block.toVariable(`is|${op.startLine}|${op.startColumn}`, true);
-      let is = makeNode("expression", {variable, op: "eve-internal/and", args: expressions, from});
-      self.block.addUsage(variable, is);
-      self.block.expression(is);
-      return is;
-    });
-
     //-----------------------------------------------------------
     // If ... then
     //-----------------------------------------------------------
@@ -1256,7 +1232,6 @@ export class Parser extends chev.Parser {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.attributeAccess); }},
         {ALT: () => { return self.SUBRULE(self.functionRecord); }},
-        {ALT: () => { return self.SUBRULE(self.isExpression); }},
         {ALT: () => { return self.SUBRULE(self.variable); }},
         {ALT: () => { return self.SUBRULE(self.value); }},
         {ALT: () => { return self.SUBRULE(self.parenthesis); }},
@@ -1451,19 +1426,128 @@ export function parseDoc(doc:string, docId = `doc|${docIx++}`) {
       }
     }
   }
+
+  let eavs:any[] = [];
+  for(let block of parsedBlocks) {
+    toFacts(eavs, block);
+  }
+
   return {
-    results: {blocks: parsedBlocks, text, spans, extraInfo},
+    results: {blocks: parsedBlocks, text, spans, extraInfo, eavs},
     errors: allErrors,
   }
 }
 
-console.log(parseDoc(`
-foo
-~~~
-search
-  [#woot cool:"dude"]
-  not([#foo])
-bind
-  [#wat?]
-~~~
-                     `, "doc"))
+export function recordToFacts(eavs:any[], vars:any, scanLike:any) {
+  // let compilerRecord = find("eve/compiler/record");
+  // let {record:id, attribute} = compilerRecord;
+  // return [
+  //   record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value})
+  // ]
+  let rec = uuid();
+  eavs.push([rec, "tag", "eve/compiler/record"]);
+  eavs.push([rec, "record", vars[scanLike.variable.name]]);
+
+  for(let attr of scanLike.attributes) {
+    if(attr.type === "attribute") {
+      let attrId = uuid();
+      eavs.push([attrId, "attribute", attr.attribute]);
+      let value = attr.value.type == "constant" ? attr.value.value : vars[attr.value.name];
+      eavs.push([attrId, "value", value]);
+      eavs.push([rec, "attribute", attrId]);
+    }
+  }
+
+  return rec;
+}
+
+function asFactValue(vars:any, value:any) {
+  return value.type == "constant" ? value.value : vars[value.name];
+}
+
+export function outputToFacts(eavs:any[], vars:any, scanLike:any) {
+  // let compilerRecord = find("eve/compiler/record");
+  // let {record:id, attribute} = compilerRecord;
+  // return [
+  //   record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value})
+  // ]
+  let rec = uuid();
+  eavs.push([rec, "tag", "eve/compiler/output"]);
+  eavs.push([rec, "record", vars[scanLike.variable.name]]);
+  if(scanLike.action === "-=") {
+    eavs.push([rec, "tag", "eve/compiler/remove"]);
+  }
+
+  for(let attr of scanLike.attributes) {
+    if(attr.type === "attribute") {
+      let attrId = uuid();
+      eavs.push([attrId, "attribute", attr.attribute]);
+      eavs.push([attrId, "value", asFactValue(vars, attr.value)]);
+      if(attr.nonProjecting) {
+        eavs.push([attrId, "tag", "eve/compiler/attribute/non-identity"]);
+      }
+      eavs.push([rec, "attribute", attrId]);
+    }
+  }
+
+  return rec;
+}
+
+export function toFacts(eavs:any[], block:any) {
+  let blockId = uuid();
+  eavs.push([blockId, "tag", "eve/compiler/block"]);
+  eavs.push([blockId, "name", block.id]);
+  let blockType = "bind";
+  if(block.commits.length) { blockType = "commit"; }
+  eavs.push([blockId, "type", blockType]);
+
+  let vars:any = {};
+  for(let variable in block.variables) {
+    let varId = uuid();
+    vars[variable] = varId;
+    eavs.push([varId, "tag", "eve/compiler/var"]);
+  }
+  console.log("VARS", vars);
+
+  for(let scanLike of block.scanLike) {
+    switch(scanLike.type) {
+      case "record":
+        let constraint = recordToFacts(eavs, vars, scanLike);
+        eavs.push([blockId, "constraint", constraint]);
+        break;
+      case "scan":
+        let lookupId = uuid();
+        eavs.push([lookupId, "tag", "eve/compiler/lookup"]);
+        eavs.push([lookupId, "record", asFactValue(vars, scanLike.entity)]);
+        eavs.push([lookupId, "attribute", asFactValue(vars, scanLike.attribute)]);
+        eavs.push([lookupId, "value", asFactValue(vars, scanLike.value)]);
+        eavs.push([blockId, "constraint", lookupId]);
+        break;
+    }
+  }
+
+  let outputs = block.binds.concat(block.commits);
+  for(let output of outputs) {
+    switch(output.type) {
+      case "record":
+        console.log("HERE", output);
+        let constraint = outputToFacts(eavs, vars, output);
+        eavs.push([blockId, "constraint", constraint]);
+      break;
+      case "scan":
+        // @TODO
+        let lookupId = uuid();
+        // eavs.push([lookupId, "tag", "eve/compiler/lookup"]);
+        // eavs.push([lookupId, "record", asFactValue(scanLike.entity)]);
+        // eavs.push([lookupId, "attribute", asFactValue(scanLike.attribute)]);
+        // eavs.push([lookupId, "value", asFactValue(scanLike.value)]);
+        break;
+    }
+  }
+
+  return eavs;
+
+  // let lookup = find("eve/compiler/lookup");
+  // let {record:rec, attribute, value} = lookup;
+
+}
