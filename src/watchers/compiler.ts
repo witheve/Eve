@@ -4,7 +4,7 @@
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block} from "../runtime/runtime";
-import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, WatchFlow, CommitFlow} from "../runtime/dsl2";
+import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, Fn, WatchFlow, CommitFlow} from "../runtime/dsl2";
 import "setimmediate";
 
 export interface CompilationContext {
@@ -176,6 +176,14 @@ export class CompilerWatcher extends Watcher {
           console.log("LOOKUP", lookup)
         })
       }
+      if(constraint.type === "expression") {
+        console.log("got expression!", constraint);
+        inContext(flow, () => {
+          let args = constraint.args.map((v:RawValue) => compileValue(compile, context, v));
+          let returns = constraint.returns.map((v:RawValue) => compileValue(compile, context, v))[0];
+          let fn = new Fn(flow.context, constraint.op, args, returns);
+        })
+      }
     }
     let block = (this.programToInjectInto as any)[`_${type}`](name, flow);
     if(type === "watch" && item.watcher) {
@@ -297,6 +305,92 @@ export class CompilerWatcher extends Watcher {
       for(let key in removes) {
         let {block, id, record, attribute, value} = removes[key];
         delete items[id];
+        this.queue(block);
+      }
+    })
+
+    me.watch("get expressions", ({find, record}) => {
+      let expr = find("eve/compiler/expression");
+      let block = find("eve/compiler/block", {constraint: expr});
+      return [
+        record({block, id:expr, op:expr.op})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, op:string}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, op} = adds[key];
+        let found = items[id];
+        if(!found) {
+          found = items[id] = {type: "expression", op, args: [], returns: []};
+        }
+        found.op = op;
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id, op} = removes[key];
+        let found = items[id];
+        if(!found) { continue; }
+        delete items[id];
+        this.queue(block);
+      }
+    })
+
+    me.watch("get expression args", ({find, record}) => {
+      let expr = find("eve/compiler/expression");
+      let block = find("eve/compiler/block", {constraint: expr});
+      let {arg} = expr;
+      return [
+        record({block, id:expr, index:arg.index, value:arg.value})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, index:number, value:RawValue}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, index, value} = adds[key];
+        let found = items[id];
+        if(!found) { throw new Error("args for a non existent expression"); }
+        found.args[index - 1] = value;
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id, index, value} = removes[key];
+        let found = items[id];
+        if(!found) { continue; }
+        if(found.args[index - 1] == value) {
+          found.args[index - 1] = undefined;
+        }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get expression returns", ({find, record}) => {
+      let expr = find("eve/compiler/expression");
+      let block = find("eve/compiler/block", {constraint: expr});
+      let {return:ret} = expr;
+      return [
+        record({block, id:expr, index:ret.index, value:ret.value})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, index:number, value:RawValue}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, index, value} = adds[key];
+        let found = items[id];
+        if(!found) { throw new Error("returns for a non existent expression"); }
+        found.returns[index - 1] = value;
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id, index, value} = removes[key];
+        let found = items[id];
+        if(!found) { continue; }
+        if(found.returns[index - 1] == value) {
+          found.returns[index - 1] = undefined;
+        }
         this.queue(block);
       }
     })

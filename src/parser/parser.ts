@@ -921,7 +921,7 @@ export class Parser extends chev.Parser {
       let comparator = self.CONSUME(Comparison);
       let result = self.SUBRULE(self.expression);
       let variable = self.block.toVariable(`attribute|${attribute.startLine}|${attribute.startColumn}`, true);
-      let expression = makeNode("expression", {op: comparator.image, args: [asValue(variable), asValue(result)], from: [attribute, comparator, result]})
+      let expression = makeNode("expression", {op: `compare/${comparator.image}`, args: [asValue(variable), asValue(result)], from: [attribute, comparator, result]})
       self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return makeNode("attribute", {attribute: attribute.image, value: variable, from: [attribute, comparator, expression]});
@@ -1022,7 +1022,7 @@ export class Parser extends chev.Parser {
           // with a variable for its return value
           if(nonFiltering) {
             let variable = self.block.toVariable(`comparison|${comparator.startLine}|${comparator.startColumn}`, true);
-            expression = makeNode("expression", {variable, op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
+            expression = makeNode("expression", {variable, op: `compare/${comparator.image}`, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
             self.block.addUsage(variable, expression);
             self.block.expression(expression);
           } else if(comparator instanceof Equality) {
@@ -1038,7 +1038,7 @@ export class Parser extends chev.Parser {
               self.block.equality(asValue(curLeft), asValue(value));
             }
           } else {
-            expression = makeNode("expression", {op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
+            expression = makeNode("expression", {op: `compare/${comparator.image}`, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
             self.block.expression(expression);
           }
           curLeft = value;
@@ -1173,7 +1173,7 @@ export class Parser extends chev.Parser {
         for(let pair of ops) {
           let {op, right} = pair;
           curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
-          let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
+          let expression = makeNode("expression", {op: `math/${op.image}`, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
           self.block.addUsage(curVar, expression);
           self.block.expression(expression)
@@ -1202,7 +1202,7 @@ export class Parser extends chev.Parser {
         for(let pair of ops) {
           let {op, right} = pair;
           curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
-          let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
+          let expression = makeNode("expression", {op: `math/${op.image}`, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
           self.block.addUsage(curVar, expression);
           self.block.expression(expression)
@@ -1508,7 +1508,6 @@ export function toFacts(eavs:any[], block:any) {
     vars[variable] = varId;
     eavs.push([varId, "tag", "eve/compiler/var"]);
   }
-  console.log("VARS", vars);
 
   for(let scanLike of block.scanLike) {
     switch(scanLike.type) {
@@ -1530,6 +1529,7 @@ export function toFacts(eavs:any[], block:any) {
   for(let expr of block.expressions) {
     console.log(expr);
     let exprId = uuid();
+    eavs.push([blockId, "constraint", exprId]);
     eavs.push([exprId, "tag", "eve/compiler/expression"]);
     eavs.push([exprId, "op", expr.op]);
     if(expr.type === "expression") {
@@ -1538,11 +1538,15 @@ export function toFacts(eavs:any[], block:any) {
         let argId = uuid();
         eavs.push([exprId, "arg", argId]);
         eavs.push([argId, "index", ix]);
-        eavs.push([argId, "value", asFactValue(arg)]);
+        eavs.push([argId, "value", asFactValue(vars, arg)]);
         ix++;
       }
+      let returnId = uuid();
+      eavs.push([exprId, "return", returnId]);
+      eavs.push([returnId, "index", 1]);
+      eavs.push([returnId, "value", asFactValue(vars, expr.variable)]);
     } else if(expr.type === "functionRecord") {
-
+      // @TODO
     }
   }
 
@@ -1550,7 +1554,6 @@ export function toFacts(eavs:any[], block:any) {
   for(let output of outputs) {
     switch(output.type) {
       case "record":
-        console.log("HERE", output);
         let constraint = outputToFacts(eavs, vars, output);
         eavs.push([blockId, "constraint", constraint]);
       break;
