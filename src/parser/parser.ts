@@ -1494,21 +1494,7 @@ export function outputToFacts(eavs:any[], vars:any, scanLike:any) {
   return rec;
 }
 
-export function toFacts(eavs:any[], block:any) {
-  let blockId = uuid();
-  eavs.push([blockId, "tag", "eve/compiler/block"]);
-  eavs.push([blockId, "name", block.id]);
-  let blockType = "bind";
-  if(block.commits.length) { blockType = "commit"; }
-  eavs.push([blockId, "type", blockType]);
-
-  let vars:any = {};
-  for(let variable in block.variables) {
-    let varId = uuid();
-    vars[variable] = varId;
-    eavs.push([varId, "tag", "eve/compiler/var"]);
-  }
-
+function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
   for(let [left, right] of block.equalities) {
     let eqId = uuid();
     eavs.push([eqId, "tag", "eve/compiler/equality"]);
@@ -1530,6 +1516,13 @@ export function toFacts(eavs:any[], block:any) {
         eavs.push([lookupId, "attribute", asFactValue(vars, scanLike.attribute)]);
         eavs.push([lookupId, "value", asFactValue(vars, scanLike.value)]);
         eavs.push([blockId, "constraint", lookupId]);
+        break;
+      case "not":
+        let notId = uuid();
+        eavs.push([notId, "tag", "eve/compiler/not"]);
+        eavs.push([notId, "tag", "eve/compiler/block"]);
+        eavs.push([blockId, "constraint", notId]);
+        subBlockToFacts(eavs, vars, notId, scanLike);
         break;
     }
   }
@@ -1556,7 +1549,6 @@ export function toFacts(eavs:any[], block:any) {
         eavs.push([returnId, "value", asFactValue(vars, expr.variable)]);
       }
     } else if(expr.type === "functionRecord") {
-      // @TODO
       for(let arg of expr.record.attributes) {
         let argId = uuid();
         eavs.push([exprId, "arg", argId]);
@@ -1580,6 +1572,25 @@ export function toFacts(eavs:any[], block:any) {
       }
     }
   }
+}
+
+export function toFacts(eavs:any[], block:any) {
+  let blockId = uuid();
+  eavs.push([blockId, "tag", "eve/compiler/rule"]);
+  eavs.push([blockId, "tag", "eve/compiler/block"]);
+  eavs.push([blockId, "name", block.id]);
+  let blockType = "bind";
+  if(block.commits.length) { blockType = "commit"; }
+  eavs.push([blockId, "type", blockType]);
+
+  let vars:any = {};
+  for(let variable in block.variableLookup) {
+    let varId = uuid();
+    vars[variable] = varId;
+    eavs.push([varId, "tag", "eve/compiler/var"]);
+  }
+
+  subBlockToFacts(eavs, vars, blockId, block);
 
   let outputs = block.binds.concat(block.commits);
   for(let output of outputs) {
