@@ -222,7 +222,6 @@ export class ReferenceContext {
     }
 
     if(!this.references[ref.__ID]) this.references[ref.__ID] = ref;
-    else if(this.references[ref.__ID] !== ref) throw new Error("Different references with the same ID");
   }
 
   equality(a:Value, b:Value) {
@@ -927,6 +926,8 @@ export class Record extends DSLBase {
     super();
     if(!record) {
       this.record = this.createReference();
+    } else {
+      context.register(record);
     }
     let attrs:Value[] = [];
     for(let tag of tags) {
@@ -1051,6 +1052,9 @@ export class Lookup extends DSLBase {
 
   constructor(public context:ReferenceContext, public record:Value) {
     super();
+    if(isReference(record)) {
+      context.register(record);
+    }
     let attribute = new Record(context);
     let value = new Record(context);
     this.attribute = attribute.reference();
@@ -1491,11 +1495,23 @@ export class Union extends DSLBase {
   inputs:Reference[] = [];
   branchInputs:Reference[][] = [];
 
-  constructor(public context:ReferenceContext, branchFunctions: Function[], parent:LinearFlow) {
+  constructor(public context:ReferenceContext, branchFunctions: Function[], parent:LinearFlow, existingResults?:Reference[]) {
     super();
     let {branches, results} = this;
-    let ix = 0;
     let resultCount:number|undefined;
+    if(existingResults) {
+      resultCount = existingResults.length;
+      this.results = existingResults.slice();
+      results = this.results;
+      for(let result of results) {
+        if(isReference(result)) {
+          result.__forceRegister = true;
+        } else {
+          throw new Error("Non-reference choose/union result");
+        }
+      }
+    }
+    let ix = 0;
     for(let branch of branchFunctions) {
       let flow = new LinearFlow(branch as LinearFlowFunction, parent);
       let branchResultCount = this.resultCount(flow.results);
@@ -1509,15 +1525,9 @@ export class Union extends DSLBase {
       } else if(resultCount !== branchResultCount) {
         throw new Error(`Choose branch ${ix} doesn't have the right number of returns. I expected ${resultCount}, but got ${branchResultCount}`);
       }
-      let branchInputs:Reference[] = this.branchInputs[ix] = [];
-      for(let ref of flow.context.getInputReferences()) {
-        if(this.inputs.indexOf(ref) === -1) {
-          this.inputs.push(ref);
-        }
-        branchInputs.push(ref);
-      }
+      this.setBranchInputs(ix, flow.context.getInputReferences());
       let resultIx = 0;
-      for(let result of this.results) {
+      for(let result of results) {
         flow.collect(new Move(flow.context, flow.results[resultIx], result));
         resultIx++;
       }
@@ -1525,6 +1535,16 @@ export class Union extends DSLBase {
       ix++;
     }
     context.flow.collect(this);
+  }
+
+  setBranchInputs(branchIx:number, inputs:Reference[]) {
+    let branchInputs:Reference[] = this.branchInputs[branchIx] = [];
+    for(let ref of inputs) {
+      if(this.inputs.indexOf(ref) === -1) {
+        this.inputs.push(ref);
+      }
+      branchInputs.push(ref);
+    }
   }
 
   getInputRegisters() {

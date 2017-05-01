@@ -4,7 +4,7 @@
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block, FunctionConstraint, printBlock} from "../runtime/runtime";
-import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, Fn, Not, WatchFlow, CommitFlow} from "../runtime/dsl2";
+import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, Fn, Not, Choose, Union, WatchFlow, LinearFlowFunction, CommitFlow} from "../runtime/dsl2";
 import "setimmediate";
 
 export interface CompilationContext {
@@ -179,7 +179,7 @@ export class CompilerWatcher extends Watcher {
           context.equality(compileValue(compile, context, constraint.left) as Value, compileValue(compile, context, constraint.right) as Value);
         })
       }
-      if(constraint.type === "not") {
+      if(constraint.type === "not" || constraint.type === "choose" || constraint.type === "union") {
         subBlocks.push(constraint);
       }
     }
@@ -190,6 +190,36 @@ export class CompilerWatcher extends Watcher {
         inContext(flow, () => {
           let not = new Not((a:any) => [], flow);
           this.compileFlow(compile, not, constraint.constraints);
+        });
+      }
+      if(constraint.type === "choose" || constraint.type == "union") {
+        let builder = constraint.type == "choose" ? Choose : Union;
+        console.log("It's choose time", constraint);
+        let branchFuncs:LinearFlowFunction[] = [];
+        for(let branchId of constraint.branches) {
+          let branch = items[branchId];
+          branchFuncs.push((self) => {
+            return branch.outputs.map((v:RawValue) => {
+              return compileValue(compile, self.context, v) as Value;
+            })
+          });
+        }
+        inContext(flow, () => {
+          let outputs = constraint.outputs.map((v:RawValue) => {
+            return compileValue(compile, context, v) as Value;
+          })
+          let choose = new builder(flow.context, branchFuncs, flow, outputs);
+          let branchIx = 0;
+          for(let branchId of constraint.branches) {
+            let branch = items[branchId];
+            let compiled = choose.branches[branchIx];
+            inContext(compiled, () => {
+              this.compileFlow(compile, compiled, branch.constraints);
+            })
+            choose.setBranchInputs(branchIx, compiled.context.getInputReferences());
+            console.log("Branch", compiled);
+            branchIx++;
+          }
         });
       }
 
@@ -225,6 +255,7 @@ export class CompilerWatcher extends Watcher {
       }
     }
     console.log("Compiled: ", printBlock(block));
+    console.log("Compiled: ", block, flow);
     return block;
   }
 
@@ -307,6 +338,165 @@ export class CompilerWatcher extends Watcher {
         }
         if(found.constraints.length === 0) {
           delete items[not];
+        }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get choose branches", ({find, record, choose}) => {
+      let item = find("eve/compiler/branch-set");
+      let [itemType] = choose(() => {
+        item.tag == "eve/compiler/choose";
+        return ["choose"];
+      }, () => {
+        item.tag == "eve/compiler/union";
+        return ["union"];
+      })
+      let block = find("eve/compiler/rule", {constraint: item});
+      return [
+        record({block, item, itemType, branch:item.branch})
+      ]
+    })
+
+    me.asObjects<{block:string, item:string, itemType:string, branch:string}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, item, branch, itemType} = adds[key];
+        let found = items[item];
+        if(!found) {
+          found = items[item] = {type: itemType, branches: [], outputs: []};
+        }
+        if(!items[branch]) {
+          items[branch] = {type: "branch", constraints: [], outputs: []};
+        }
+        if(found.branches.indexOf(branch) === -1) {
+          found.branches.push(branch);
+        }
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, item, itemType, branch} = removes[key];
+        let found = items[item];
+        if(!found) {
+          continue;
+        }
+        let ix = found.branches.indexOf(branch)
+        if(ix > -1) {
+          found.branches.splice(ix, 1);
+        }
+        if(found.branches.length === 0) {
+          delete items[item];
+        }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get choose outputs", ({find, record}) => {
+      let choose = find("eve/compiler/branch-set");
+      let block = find("eve/compiler/block", {constraint: choose});
+      let {value, index} = choose.output;
+      return [
+        record({block, choose, value, index})
+      ]
+    })
+
+    me.asObjects<{block:string, choose:string, value:RawValue, index:number}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, choose, value, index} = adds[key];
+        let found = items[choose];
+        if(!found) {
+          console.error("adding output for a branch that doesn't exist")
+          return;
+        }
+        found.outputs[index - 1] = value;
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, choose, value, index} = removes[key];
+        let found = items[choose];
+        if(!found) {
+          continue;
+        }
+        let cur = found.outputs[index];
+        if(cur === value) {
+          found.outputs[index - 1] = undefined;
+        }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get choose branch constraints", ({find, record}) => {
+      let choose = find("eve/compiler/branch-set");
+      let block = find("eve/compiler/block", {constraint: choose});
+      let {branch} = choose
+      return [
+        record({block, branch, constraint:branch.constraint})
+      ]
+    })
+
+    me.asObjects<{block:string, constraint:string, branch:string}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, constraint, branch} = adds[key];
+        let found = items[branch];
+        if(!found) {
+          console.error("adding constraint for a branch that doesn't exist")
+          return;
+        }
+        if(found.constraints.indexOf(constraint) === -1) {
+          found.constraints.push(constraint);
+        }
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, constraint, branch} = removes[key];
+        let found = items[branch];
+        if(!found) {
+          continue;
+        }
+        let ix = found.constraints.indexOf(constraint)
+        if(ix > -1) {
+          found.constraints.splice(ix, 1);
+        }
+        if(found.constraints.length === 0) {
+          delete items[branch];
+        }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get choose branch outputs", ({find, record}) => {
+      let choose = find("eve/compiler/branch-set");
+      let block = find("eve/compiler/block", {constraint: choose});
+      let branch = choose.branch
+      let {value, index} = branch.output
+      return [
+        record({block, branch, value, index})
+      ]
+    })
+
+    me.asObjects<{block:string, branch:string, value:RawValue, index:number}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, branch, value, index} = adds[key];
+        let found = items[branch];
+        if(!found) {
+          console.error("adding output for a branch that doesn't exist")
+          return;
+        }
+        found.outputs[index - 1] = value;
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, branch, value, index} = removes[key];
+        let found = items[branch];
+        if(!found) {
+          continue;
+        }
+        let cur = found.outputs[index];
+        if(cur === value) {
+          found.outputs[index - 1] = undefined;
         }
         this.queue(block);
       }

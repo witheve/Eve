@@ -1026,7 +1026,7 @@ export class Parser extends chev.Parser {
             self.block.addUsage(variable, expression);
             self.block.expression(expression);
           } else if(comparator instanceof Equality) {
-            if(value.type === "ifExpression") {
+            if(value.type === "choose" || value.type === "union") {
               value.outputs = ifOutputs(left);
               self.block.scan(value);
             } else if(value.type === "functionRecord" && curLeft.type === "parenthesis") {
@@ -1080,18 +1080,24 @@ export class Parser extends chev.Parser {
 
     self.RULE("ifExpression", () => {
       let branches:any[] = [];
+      let exclusive = false;
       let from = branches;
       branches.push(self.SUBRULE(self.ifBranch));
       self.MANY(() => {
         branches.push(self.OR([
           {ALT: () => { return self.SUBRULE2(self.ifBranch); }},
-          {ALT: () => { return self.SUBRULE(self.elseIfBranch); }},
+          {ALT: () => {
+            exclusive = true;
+            return self.SUBRULE(self.elseIfBranch);
+          }},
         ]));
       });
       self.OPTION(() => {
+        exclusive = true;
         branches.push(self.SUBRULE(self.elseBranch));
       });
-      return makeNode("ifExpression", {branches, from});
+      let expressionType = exclusive ? "choose" : "union";
+      return makeNode(expressionType, {branches, from});
     });
 
     self.RULE("ifBranch", () => {
@@ -1523,6 +1529,37 @@ function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
         eavs.push([notId, "tag", "eve/compiler/block"]);
         eavs.push([blockId, "constraint", notId]);
         subBlockToFacts(eavs, vars, notId, scanLike);
+        break;
+      case "choose":
+      case "union":
+        let chooseId = uuid();
+        if(scanLike.type === "choose") {
+          eavs.push([chooseId, "tag", "eve/compiler/choose"]);
+        } else {
+          eavs.push([chooseId, "tag", "eve/compiler/union"]);
+        }
+        eavs.push([chooseId, "tag", "eve/compiler/branch-set"]);
+        eavs.push([blockId, "constraint", chooseId]);
+        for(let branch of scanLike.branches) {
+          let branchId = uuid();
+          eavs.push([chooseId, "branch", branchId]);
+          eavs.push([branchId, "tag", "eve/compiler/block"]);
+          subBlockToFacts(eavs, vars, branchId, branch.block);
+          let ix = 1;
+          for(let output of branch.outputs) {
+            let outputId = uuid();
+            eavs.push([branchId, "output", outputId]);
+            eavs.push([outputId, "value", asFactValue(vars, output)]);
+            eavs.push([outputId, "index", ix]);
+          }
+        }
+        let ix = 1;
+        for(let output of scanLike.outputs) {
+          let outputId = uuid();
+          eavs.push([chooseId, "output", outputId]);
+          eavs.push([outputId, "value", asFactValue(vars, output)]);
+          eavs.push([outputId, "index", ix]);
+        }
         break;
     }
   }
