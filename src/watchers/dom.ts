@@ -68,7 +68,6 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   }
 
   insertChild(parent:Element|null, child:Instance, at = child.__sort) {
-    at = at !== undefined ? ""+at: at;
     child.__sort = at
     if(at !== undefined) child.setAttribute("sort", ""+at);
     if(!parent) return;
@@ -282,6 +281,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           if(a === "tagname") continue;
           else if(a === "children") continue;
           else if(a === "sort") continue; // I guess..?
+          else if(a === "eve-auto-index") continue; // I guess..?
 
           else if(a === "class") instance.classList.remove(""+v);
           else if(a === "text") instance.textContent = null;
@@ -298,6 +298,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
           else if(a === "class") instance.classList.add(""+v);
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
+          else if(a === "eve-auto-index") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
           else if(a === "style") this.addStyleInstance(v, e);
           else this.addAttribute(instance, a, v);

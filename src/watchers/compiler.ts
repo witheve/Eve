@@ -138,7 +138,7 @@ export class CompilerWatcher extends Watcher {
           }
           let outputVar = compileValue(compile, context, constraint.record) as Reference;
           let output;
-          if(!outputVar.__owner) {
+          if(constraint.attributes.length > 0) {
             output = new outputType(flow.context, [], attrs);
             context.equality(output.reference(), outputVar);
           } else {

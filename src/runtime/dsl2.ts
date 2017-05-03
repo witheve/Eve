@@ -269,14 +269,16 @@ export class ReferenceContext {
     return value;
   }
 
-  selectReference(ref:Reference, ref2:Reference) {
+  selectReference(refIds:any, ref:Reference, ref2:Reference) {
+    let refID = refIds[ref.__ID] || ref.__ID;
+    let ref2ID = refIds[ref2.__ID] || ref2.__ID;
     if(!this.owns(ref) && !this.owns(ref2)) {
-      if(ref.__ID < ref2.__ID) return ref2;
+      if(refID < ref2ID) return ref2;
       return ref;
     }
     if(!this.owns(ref)) return ref;
     if(!this.owns(ref2)) return ref2;
-    if(ref.__ID < ref2.__ID) return ref2;
+    if(refID < ref2ID) return ref2;
     return ref;
   }
 
@@ -285,6 +287,7 @@ export class ReferenceContext {
     let values:(Register | RawValue)[] = this.referenceValues;
     let forcedMoves = [];
     let changed = equalities.length > 0;
+    let refIds:any = {};
 
     let round = 0;
     let maxRound = Math.pow(this.equalities.length + 1, 2);
@@ -304,10 +307,12 @@ export class ReferenceContext {
         if((a as Reference).__forceRegister || (b as Reference).__forceRegister) {
           forcedMoves.push([a,b]);
         } else if(isReference(a) && isReference(b)) {
-          if(this.selectReference(a, b) === b) {
+          if(this.selectReference(refIds, a, b) === b) {
             neueA = bValue;
+            refIds[a.__ID] = b.__ID
           } else {
             neueB = aValue;
+            refIds[b.__ID] = a.__ID
           }
         } else if(isReference(a)) {
           neueA = bValue;

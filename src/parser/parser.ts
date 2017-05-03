@@ -652,9 +652,15 @@ export class Parser extends chev.Parser {
             value.extraProjection = [parent];
           }
           if(value.type === "parenthesis") {
+            let autoIndex = 0;
             for(let item of value.items) {
               if(item.type === "record" && !value.extraProjection) {
                 item.extraProjection = [parent];
+              }
+              if(item.from[0] && item.from[0].type === "record") {
+                let record = item.from[0];
+                record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: [record]}), from: [record]}));
+                autoIndex++;
               }
             }
           }
@@ -1487,13 +1493,21 @@ export function outputToFacts(eavs:any[], vars:any, scanLike:any) {
 
   for(let attr of scanLike.attributes) {
     if(attr.type === "attribute") {
-      let attrId = uuid();
-      eavs.push([attrId, "attribute", attr.attribute]);
-      eavs.push([attrId, "value", asFactValue(vars, attr.value)]);
-      if(attr.nonProjecting) {
-        eavs.push([attrId, "tag", "eve/compiler/attribute/non-identity"]);
+      let values;
+      if(attr.value.type === "parenthesis") {
+        values = attr.value.items;
+      } else {
+        values = [attr.value];
       }
-      eavs.push([rec, "attribute", attrId]);
+      for(let value of values) {
+        let attrId = uuid();
+        eavs.push([attrId, "attribute", attr.attribute]);
+        eavs.push([attrId, "value", asFactValue(vars, value)]);
+        if(attr.nonProjecting) {
+          eavs.push([attrId, "tag", "eve/compiler/attribute/non-identity"]);
+        }
+        eavs.push([rec, "attribute", attrId]);
+      }
     }
   }
 
@@ -1565,7 +1579,6 @@ function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
   }
 
   for(let expr of block.expressions) {
-    console.log(expr);
     let exprId = uuid();
     eavs.push([blockId, "constraint", exprId]);
     eavs.push([exprId, "tag", "eve/compiler/expression"]);
@@ -1636,13 +1649,13 @@ export function toFacts(eavs:any[], block:any) {
         let constraint = outputToFacts(eavs, vars, output);
         eavs.push([blockId, "constraint", constraint]);
       break;
-      case "scan":
-        // @TODO
-        let lookupId = uuid();
-        // eavs.push([lookupId, "tag", "eve/compiler/lookup"]);
-        // eavs.push([lookupId, "record", asFactValue(scanLike.entity)]);
-        // eavs.push([lookupId, "attribute", asFactValue(scanLike.attribute)]);
-        // eavs.push([lookupId, "value", asFactValue(scanLike.value)]);
+      case "action":
+        let action = outputToFacts(eavs, vars, {
+          action: output.action,
+          variable: output.entity,
+          attributes: [{type: "attribute", attribute: output.attribute, value: output.value, nonProjecting: true}]
+        })
+        eavs.push([blockId, "constraint", action]);
         break;
     }
   }
