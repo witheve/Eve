@@ -4,7 +4,9 @@
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block, FunctionConstraint, printBlock} from "../runtime/runtime";
-import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, Fn, Not, Choose, Union, WatchFlow, LinearFlowFunction, CommitFlow} from "../runtime/dsl2";
+import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, Fn, Not, Choose, Union, Aggregate, WatchFlow, LinearFlowFunction, CommitFlow} from "../runtime/dsl2";
+import {SumAggregate} from "../runtime/stdlib";
+import * as Runtime from "../runtime/runtime";
 import "setimmediate";
 
 export interface CompilationContext {
@@ -174,6 +176,31 @@ export class CompilerWatcher extends Watcher {
           let fn = new Fn(flow.context, constraint.op, args, returns);
         })
       }
+      if(constraint.type === "aggregate") {
+        inContext(flow, () => {
+          let projection:Reference[] = [];
+          let group:Reference[] = [];
+          let args:Value[] = [];
+          for(let arg in constraint.namedArgs) {
+            let values = constraint.namedArgs[arg].map((v:RawValue) => compileValue(compile, context, v));
+            if(arg === "for" || arg === "given") {
+              projection = values;
+            } else if(arg === "per") {
+              group = values;
+            } else if(arg === "direction" || arg === "value") {
+              args = args.concat(values);
+            }
+          }
+          let aggOp:any = SumAggregate;
+          if(constraint.op === "gather/sort") {
+            aggOp = Runtime.SortNode;
+          } else if(constraint.op === "gather/count" && args.length === 0) {
+            args.push(1);
+          }
+          let returns = constraint.returns.map((v:RawValue) => compileValue(compile, context, v))[0];
+          let agg = new Aggregate(flow.context, aggOp, projection, group, args, returns);
+        })
+      }
       if(constraint.type === "equality") {
         inContext(flow, () => {
           context.equality(compileValue(compile, context, constraint.left) as Value, compileValue(compile, context, constraint.right) as Value);
@@ -186,7 +213,6 @@ export class CompilerWatcher extends Watcher {
 
     for(let constraint of subBlocks) {
       if(constraint.type === "not") {
-        console.log("It's not time", constraint);
         inContext(flow, () => {
           let not = new Not((a:any) => [], flow);
           this.compileFlow(compile, not, constraint.constraints);
@@ -194,7 +220,6 @@ export class CompilerWatcher extends Watcher {
       }
       if(constraint.type === "choose" || constraint.type == "union") {
         let builder = constraint.type == "choose" ? Choose : Union;
-        console.log("It's choose time", constraint);
         let branchFuncs:LinearFlowFunction[] = [];
         for(let branchId of constraint.branches) {
           let branch = items[branchId];
@@ -217,7 +242,6 @@ export class CompilerWatcher extends Watcher {
               this.compileFlow(compile, compiled, branch.constraints);
             })
             choose.setBranchInputs(branchIx, compiled.context.getInputReferences());
-            console.log("Branch", compiled);
             branchIx++;
           }
         });
@@ -586,21 +610,27 @@ export class CompilerWatcher extends Watcher {
       }
     })
 
-    me.watch("get expressions", ({find, record}) => {
+    me.watch("get expressions", ({find, record, choose}) => {
       let expr = find("eve/compiler/expression");
+      let [type] = choose(() => {
+        expr.tag == "eve/compiler/aggregate";
+        return ["aggregate"];
+      }, () => {
+        return ["expression"];
+      })
       let block = find("eve/compiler/block", {constraint: expr});
       return [
-        record({block, id:expr, op:expr.op})
+        record({block, id:expr, op:expr.op, type})
       ]
     })
 
-    me.asObjects<{block:string, id:string, op:string}>(({adds, removes}) => {
+    me.asObjects<{block:string, id:string, op:string, type:string}>(({adds, removes}) => {
       let {items} = this;
       for(let key in adds) {
-        let {block, id, op} = adds[key];
+        let {block, id, op, type} = adds[key];
         let found = items[id];
         if(!found) {
-          found = items[id] = {type: "expression", op, args: [], returns: []};
+          found = items[id] = {type, op, args: [], returns: [], namedArgs: {}};
         }
         found.op = op;
         this.queue(block);
@@ -643,8 +673,11 @@ export class CompilerWatcher extends Watcher {
       }
     })
 
-    me.watch("get expression named args", ({find, record}) => {
+    me.watch("get expression named args", ({find, record, not}) => {
       let expr = find("eve/compiler/expression");
+      not(() => {
+        expr.tag == "eve/compiler/aggregate";
+      })
       let block = find("eve/compiler/block", {constraint: expr});
       let {arg} = expr;
       return [
@@ -683,6 +716,39 @@ export class CompilerWatcher extends Watcher {
           found.returns[retIx] = undefined;
         } else {
           console.error(`Unknown arg for expression: ${found.op}[${name}]`);
+        }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get aggregate named args", ({find, record, not}) => {
+      let expr = find("eve/compiler/aggregate");
+      let block = find("eve/compiler/block", {constraint: expr});
+      let {arg} = expr;
+      return [
+        record({block, id:expr, name:arg.name, value:arg.value})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, name:string, value:RawValue}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, name, value} = adds[key];
+        let found = items[id];
+        if(!found) { throw new Error("args for a non existent expression"); }
+        let args = found.namedArgs[name] || [];
+        args.push(value);
+        found.namedArgs[name] = args;
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id, name, value} = removes[key];
+        let found = items[id];
+        if(!found) { continue; }
+        let args = found.namedArgs[name];
+        if(args) {
+          let ix = args.indexOf(value);
+          args.splice(ix, 1);
         }
         this.queue(block);
       }

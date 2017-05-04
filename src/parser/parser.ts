@@ -1592,8 +1592,12 @@ function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
 
   for(let expr of block.expressions) {
     let exprId = uuid();
+    let isAggregate = expr.op.indexOf("gather/") === 0;
     eavs.push([blockId, "constraint", exprId]);
     eavs.push([exprId, "tag", "eve/compiler/expression"]);
+    if(isAggregate) {
+      eavs.push([exprId, "tag", "eve/compiler/aggregate"]);
+    }
     eavs.push([exprId, "op", expr.op]);
     if(expr.type === "expression") {
       let ix = 1;
