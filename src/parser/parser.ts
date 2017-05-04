@@ -1478,17 +1478,23 @@ function asFactValue(vars:any, value:any) {
   return value.type == "constant" ? value.value : vars[value.name];
 }
 
-export function outputToFacts(eavs:any[], vars:any, scanLike:any) {
-  // let compilerRecord = find("eve/compiler/record");
-  // let {record:id, attribute} = compilerRecord;
-  // return [
-  //   record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value})
-  // ]
+export function outputToFacts(eavs:any[], vars:any, scanLike:any, blockId:string) {
   let rec = uuid();
   eavs.push([rec, "tag", "eve/compiler/output"]);
   eavs.push([rec, "record", vars[scanLike.variable.name]]);
   if(scanLike.action === "-=" || scanLike.action === "erase") {
     eavs.push([rec, "tag", "eve/compiler/remove"]);
+  } else if(scanLike.action === ":=" || scanLike.action === "<-") {
+    let attrs = [];
+    for(let attribute of scanLike.attributes) {
+      attribute.nonProjecting = true;
+      if(attribute.type === "attribute") {
+        if(scanLike.action === ":=" || (attribute.attribute !== "tag")) {
+          attrs.push({type: "attribute", attribute: attribute.attribute, nonProjecting:true});
+        }
+      }
+    }
+    outputToFacts(eavs, vars, {variable:scanLike.variable, action: "erase", attributes:attrs}, blockId);
   }
 
   for(let attr of scanLike.attributes) {
@@ -1512,7 +1518,7 @@ export function outputToFacts(eavs:any[], vars:any, scanLike:any) {
       }
     }
   }
-
+  eavs.push([blockId, "constraint", rec]);
   return rec;
 }
 
@@ -1648,16 +1654,14 @@ export function toFacts(eavs:any[], block:any) {
   for(let output of outputs) {
     switch(output.type) {
       case "record":
-        let constraint = outputToFacts(eavs, vars, output);
-        eavs.push([blockId, "constraint", constraint]);
+        outputToFacts(eavs, vars, output, blockId);
       break;
       case "action":
-        let action = outputToFacts(eavs, vars, {
+        outputToFacts(eavs, vars, {
           action: output.action,
           variable: output.entity,
           attributes: [{type: "attribute", attribute: output.attribute, value: output.value, nonProjecting: true}]
-        })
-        eavs.push([blockId, "constraint", action]);
+        }, blockId)
         break;
     }
   }
