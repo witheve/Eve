@@ -477,6 +477,9 @@ export class FlowLevel {
     let join:Runtime.Node;
     if(!nodes.length && constraints.length) {
       join = new Runtime.JoinNode(constraints);
+      if(!this.records.length && !this.lookups.length && !this.moves.length) {
+        (join as Runtime.JoinNode).isStatic = true;
+      }
     } else if(constraints.length) {
       join = new Runtime.DownstreamJoinNode(constraints);
     } else if(nodes.length) {
@@ -1718,7 +1721,7 @@ export class Program {
     }
     trans.exec(this.context);
     // console.timeEnd("input");
-    // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
 
     // let g:any = global;
     // let filterPrefix = "eve/compiler/";

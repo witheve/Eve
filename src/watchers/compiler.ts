@@ -805,31 +805,20 @@ export class CompilerWatcher extends Watcher {
       let block = find("eve/compiler/block", {constraint: compilerRecord});
       let {attribute} = compilerRecord;
       not(() => attribute.value)
-      let [attributeType] = choose(() => {
-        attribute.tag == "eve/compiler/attribute/non-identity";
-        return "non-identity";
-      }, () => {
-        return "identity";
-      });
       return [
-        record({block, id:compilerRecord, attribute:attribute.attribute, attributeType})
+        record({block, id:compilerRecord, record:compilerRecord.record, attribute:attribute.attribute})
       ]
     })
 
-    me.asObjects<{block:string, id:string, attribute:string, attributeType:string}>(({adds, removes}) => {
+    me.asObjects<{block:string, id:string, record:string, attribute:string}>(({adds, removes}) => {
       let {items} = this;
       for(let key in adds) {
-        let {block, id, attribute, attributeType} = adds[key];
+        let {block, id, record, attribute} = adds[key];
         let found = items[id];
         if(!found) {
-          console.warn("This seems pretty bad.");
-          continue;
+          found = items[id] = {type: "output", attributes: [], nonIdentityAttribute:[], record: record, outputType:"remove"};
         }
-        if(attributeType === "identity") {
-          found.attributes.push([attribute, undefined]);
-        } else {
-          found.nonIdentityAttribute.push([attribute, undefined]);
-        }
+        found.nonIdentityAttribute.push([attribute, undefined]);
         this.queue(block);
       }
       for(let key in removes) {
@@ -837,9 +826,8 @@ export class CompilerWatcher extends Watcher {
         let found = items[id];
         if(!found) { continue; }
 
-        found.attributes = found.attributes.filter(([a, v]:RawValue[]) => a !== attribute || v !== undefined);
         found.nonIdentityAttribute = found.nonIdentityAttribute.filter(([a, v]:RawValue[]) => a !== attribute || v !== undefined);
-        if(found.attributes.length === 0) {
+        if(found.nonIdentityAttribute.length === 0) {
           delete items[id];
         }
         this.queue(block);

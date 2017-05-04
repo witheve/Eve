@@ -1487,14 +1487,14 @@ export function outputToFacts(eavs:any[], vars:any, scanLike:any) {
   let rec = uuid();
   eavs.push([rec, "tag", "eve/compiler/output"]);
   eavs.push([rec, "record", vars[scanLike.variable.name]]);
-  if(scanLike.action === "-=") {
+  if(scanLike.action === "-=" || scanLike.action === "erase") {
     eavs.push([rec, "tag", "eve/compiler/remove"]);
   }
 
   for(let attr of scanLike.attributes) {
     if(attr.type === "attribute") {
       let values;
-      if(attr.value.type === "parenthesis") {
+      if(attr.value && attr.value.type === "parenthesis") {
         values = attr.value.items;
       } else {
         values = [attr.value];
@@ -1502,7 +1502,9 @@ export function outputToFacts(eavs:any[], vars:any, scanLike:any) {
       for(let value of values) {
         let attrId = uuid();
         eavs.push([attrId, "attribute", attr.attribute]);
-        eavs.push([attrId, "value", asFactValue(vars, value)]);
+        if(value) {
+          eavs.push([attrId, "value", asFactValue(vars, value)]);
+        }
         if(attr.nonProjecting) {
           eavs.push([attrId, "tag", "eve/compiler/attribute/non-identity"]);
         }
