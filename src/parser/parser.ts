@@ -1452,22 +1452,24 @@ export function parseDoc(doc:string, docId = `doc|${docIx++}`) {
 }
 
 export function recordToFacts(eavs:any[], vars:any, scanLike:any) {
-  // let compilerRecord = find("eve/compiler/record");
-  // let {record:id, attribute} = compilerRecord;
-  // return [
-  //   record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value})
-  // ]
   let rec = uuid();
   eavs.push([rec, "tag", "eve/compiler/record"]);
   eavs.push([rec, "record", vars[scanLike.variable.name]]);
 
   for(let attr of scanLike.attributes) {
     if(attr.type === "attribute") {
-      let attrId = uuid();
-      eavs.push([attrId, "attribute", attr.attribute]);
-      let value = attr.value.type == "constant" ? attr.value.value : vars[attr.value.name];
-      eavs.push([attrId, "value", value]);
-      eavs.push([rec, "attribute", attrId]);
+      let values;
+      if(attr.value && attr.value.type === "parenthesis") {
+        values = attr.value.items;
+      } else {
+        values = [attr.value];
+      }
+      for(let value of values) {
+        let attrId = uuid();
+        eavs.push([attrId, "attribute", attr.attribute]);
+        eavs.push([attrId, "value", asFactValue(vars, value)]);
+        eavs.push([rec, "attribute", attrId]);
+      }
     }
   }
 
@@ -1573,6 +1575,7 @@ function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
             eavs.push([branchId, "output", outputId]);
             eavs.push([outputId, "value", asFactValue(vars, output)]);
             eavs.push([outputId, "index", ix]);
+            ix++;
           }
         }
         let ix = 1;
@@ -1581,6 +1584,7 @@ function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
           eavs.push([chooseId, "output", outputId]);
           eavs.push([outputId, "value", asFactValue(vars, output)]);
           eavs.push([outputId, "index", ix]);
+          ix++;
         }
         break;
     }
