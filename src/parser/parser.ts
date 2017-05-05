@@ -1421,7 +1421,7 @@ export function parseDoc(doc:string, docId = `doc|${docIx++}`) {
   let parsedBlocks = [];
   let allErrors = [];
   for(let block of blocks) {
-    extraInfo[block.id] = {info: block.info};
+    extraInfo[block.id] = {info: block.info, block};
     if(block.info.indexOf("disabled") > -1) {
       extraInfo[block.id].disabled = true;
     }
@@ -1445,10 +1445,76 @@ export function parseDoc(doc:string, docId = `doc|${docIx++}`) {
     toFacts(eavs, block);
   }
 
+  for(let errorSet of allErrors) {
+    for(let error of errorSet) {
+      errorToFacts(eavs, error, extraInfo[error.blockId].block);
+    }
+  }
+
   return {
     results: {blocks: parsedBlocks, text, spans, extraInfo, eavs},
     errors: allErrors,
   }
+}
+
+export function errorToFacts(eavs:any[], error:EveError, block:any) {
+  let text = block.literal;
+  let offset = block.startOffset;
+  let blockStartLine = block.sourcepos[0][0];
+  let blockLines = text.split("\n");
+  let pos = 0;
+  let start = error.start - offset;
+  let stop = error.stop - offset;
+  let curLine = 0;
+  let startLine = 0;
+  let startChar = 0;
+  let stopLine = 0;
+  let stopChar = 0;
+  while(curLine < blockLines.length && pos < start) {
+    pos += blockLines[curLine++].length + 1;
+  }
+  startLine = blockStartLine + curLine;
+  startChar = start - (pos - blockLines[curLine - 1].length) + 2;
+  while(curLine < blockLines.length && pos < stop) {
+    pos += blockLines[curLine++].length + 1;
+  }
+  stopLine = blockStartLine + curLine;
+  stopChar = stop - (pos - blockLines[curLine - 1].length) + 2;
+
+  let sampleText = [];
+  let relativeStart = startLine - blockStartLine;
+  let relativeStop = stopLine - blockStartLine;
+  if(relativeStart === 0) {
+    sampleText.push(blockLines[0]);
+  } else {
+    sampleText.push(blockLines[relativeStart - 1]);
+    sampleText.push(blockLines[relativeStart]);
+  }
+
+  if(relativeStop > relativeStart) {
+    let cur = relativeStart;
+    while(cur <= relativeStop) {
+      sampleText.push(blockLines[cur]);
+      cur++;
+    }
+  }
+
+  if(relativeStop < blockLines.length && blockLines[relativeStop + 1]) {
+    sampleText.push(blockLines[relativeStop + 1]);
+  }
+
+  let errorId = uuid();
+  let startId = uuid();
+  let stopId = uuid();
+  eavs.push([errorId, "tag", "eve/compiler/error"]);
+  eavs.push([errorId, "message", error.message]);
+  eavs.push([errorId, "start", startId]);
+  eavs.push([startId, "line", startLine]);
+  eavs.push([startId, "char", startChar]);
+  eavs.push([errorId, "stop", stopId]);
+  eavs.push([stopId, "line", stopLine]);
+  eavs.push([stopId, "char", stopChar]);
+  eavs.push([errorId, "sample", sampleText.join("\n")])
 }
 
 export function recordToFacts(eavs:any[], vars:any, scanLike:any) {

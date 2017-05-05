@@ -290,6 +290,24 @@ export class CompilerWatcher extends Watcher {
   setup() {
     let {program:me} = this;
 
+    me.bind("show errors", ({find, record}) => {
+      let err = find("eve/compiler/error");
+      return [
+        record("ui/column", {err, class: "eve-compiler-error"}).add("children", [
+          record("ui/row", {err, class: "eve-compiler-error-message-container"}).add("children", [
+            record("ui/column", {err, class: "eve-compiler-line-info", sort:0}).add("children", [
+              record("ui/text", {err, text: `Line`, sort: 0}),
+              record("ui/text", {err, class: "eve-compiler-error-message-line", text:err.start.line, sort: 1}),
+            ]),
+            record("ui/column", {err, class: "eve-compiler-error-content", sort:1}).add("children", [
+              record("ui/text", {err, class: "eve-compiler-error-message", text: err.message, sort: 0}),
+              record("ui/text", {err, class: "eve-compiler-error-sample", text: err.sample, sort:1})
+            ]),
+          ]),
+        ])
+      ]
+    });
+
     me.watch("get blocks", ({find, record}) => {
       let block = find("eve/compiler/rule");
       let {constraint, name, type} = block;
