@@ -8,6 +8,7 @@ import {RawValue, Change, RawEAV, RawEAVC, Register, isRegister, GlobalInterner,
 import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
+import * as Parser from "../parser/parser";
 import "./stdlib";
 import {SumAggregate} from "./stdlib";
 import {v4 as uuid} from "uuid";
@@ -185,6 +186,7 @@ export class Reference {
 //--------------------------------------------------------------------
 
 export class ReferenceContext {
+  static IDs = 0;
   static stack:ReferenceContext[] = [];
   static push(context:ReferenceContext) {
     ReferenceContext.stack.push(context);
@@ -193,6 +195,7 @@ export class ReferenceContext {
     ReferenceContext.stack.pop();
   }
 
+  ID:number;
   flow: LinearFlow;
   references:Reference[] = [];
   equalities:Value[][] = [];
@@ -202,6 +205,7 @@ export class ReferenceContext {
   maxRegisters = 0;
 
   constructor(public parent?:ReferenceContext, flow?:LinearFlow) {
+    this.ID = ReferenceContext.IDs++;
     this.flow = flow || new LinearFlow((x:LinearFlow) => []);
   }
 
@@ -304,15 +308,16 @@ export class ReferenceContext {
         let neueA = aValue;
         let neueB = bValue;
 
+
         if((a as Reference).__forceRegister || (b as Reference).__forceRegister) {
           forcedMoves.push([a,b]);
         } else if(isReference(a) && isReference(b)) {
           if(this.selectReference(refIds, a, b) === b) {
             neueA = bValue;
-            refIds[a.__ID] = b.__ID
+            refIds[a.__ID] = refIds[b.__ID] || b.__ID
           } else {
             neueB = aValue;
-            refIds[b.__ID] = a.__ID
+            refIds[b.__ID] = refIds[a.__ID] || a.__ID
           }
         } else if(isReference(a)) {
           neueA = bValue;
@@ -1814,5 +1819,13 @@ export class Program {
     this.exporter.triggerOnObjects(this.lastWatch, handler);
 
     return this;
+  }
+
+  load(str:string) {
+    let results = Parser.parseDoc(str);
+    this.attach("ui");
+    this.attach("html");
+    this.attach("compiler");
+    this.inputEAVs(results.results.eavs);
   }
 }
