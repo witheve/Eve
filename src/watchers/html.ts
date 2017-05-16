@@ -278,6 +278,13 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     document.body.addEventListener("mouseleave", this._hoverEventHandler("hover-out"), true);
 
     this.program
+      .bind("Elements with no parents are roots.", ({find, record, lib, not}) => {
+        let elem = find("html/element");
+        not(() => find("html/element", {children: elem}));
+        return [
+          elem.add("tag", "html/root")
+        ];
+      })
       .bind("Create an instance for each child of an external root.", ({find, record, lib, not}) => {
         let elem = find("html/element");
         let parent = find("html/root/external", {children: elem});

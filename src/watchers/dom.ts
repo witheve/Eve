@@ -158,13 +158,14 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         let click = find("{{tagPrefix}}/event/click");
         return [click.remove()];
       })
-      .bind("Elements with no parents are roots.", ({find, record, lib, not}) => {
-        let elem = find("{{tagPrefix}}/element");
-        not(() => find("{{tagPrefix}}/element", {children: elem}));
+
+      .bind("Create instances for each root.", ({find, record, lib, not}) => {
+        let elem = find("{{tagPrefix}}/root");
         return [
-          record("{{tagPrefix}}/root", "{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
+          record("{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
         ];
       })
+
       .bind("Create an instance for each child of a rooted parent.", ({find, record, lib, not}) => {
         let elem = find("{{tagPrefix}}/element");
         let parentElem = find("{{tagPrefix}}/element", {children: elem});
@@ -196,8 +197,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
       .watch("Export roots.", ({find, record}) => {
         let root = find("{{tagPrefix}}/root");
+        let instance = find("{{tagPrefix}}/instance", {element: root});
         return [
-          record({instance: root})
+          record({instance})
         ];
       })
       .asDiffs((diff) => {
@@ -296,7 +298,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
 
-          else if(a === "class") instance.classList.add(""+v);
+          else if(a === "class") for(let klass of (""+v).split(" ")) instance.classList.add(klass);
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
           else if(a === "eve-auto-index") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
