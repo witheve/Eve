@@ -87,7 +87,7 @@ export function parserErrors(errors: any[], parseInfo: {blockId: string, blockSt
     } else if(name === "NotAllInputParsedException") {
       eveError = notAllInputParsed(error, parseInfo);
     } else {
-      console.log("UNHANDLED ERROR TYPE", name);
+      // console.log("UNHANDLED ERROR TYPE", name);
       let start = token.startOffset;
       let stop = token.startOffset + token.image.length;
       eveError = new EveError(blockId, start, stop, message, context);

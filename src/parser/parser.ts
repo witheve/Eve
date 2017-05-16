@@ -341,6 +341,7 @@ export class ParseBlock {
 //-----------------------------------------------------------
 
 export class Parser extends chev.Parser {
+  customErrors: any[];
   block: ParseBlock;
   activeScopes: string[];
   currentAction: string;
@@ -962,6 +963,7 @@ export class Parser extends chev.Parser {
     self.RULE("name", () => {
       let at = self.CONSUME(Name);
       let name = self.CONSUME(Identifier);
+      self.customErrors.push({message: `Databases have been deprecated, so @${name.image} has no meaning here`, name: "Database deprecation", resyncedTokens: [], context:{ruleOccurrenceStack: [], ruleStack: []}, token:name})
       return makeNode("name", {name: name.image, from: [at, name]});
     });
 
@@ -1371,6 +1373,7 @@ export function parseBlock(block:any, blockId:string, offset = 0, spans:any[] = 
   eveParser.input = lex.tokens;
   let results;
   try {
+    eveParser.customErrors = [];
     // The parameters here are a strange quirk of how Chevrotain works, I believe the
     // 1 tells chevrotain what level the rule is starting at, we then pass our params
     // to the codeBlock parser function as an array
@@ -1406,7 +1409,7 @@ export function parseBlock(block:any, blockId:string, offset = 0, spans:any[] = 
       extraInfo[action.id] = {kind: "commits"};
     }
   }
-  let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
+  let errors = parserErrors(eveParser.errors.concat(eveParser.customErrors), {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
   lex.groups.comments.length = 0;
   return {
     results,
