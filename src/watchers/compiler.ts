@@ -10,7 +10,7 @@ import * as Runtime from "../runtime/runtime";
 import "setimmediate";
 
 export interface CompilationContext {
-  variables: {[id:string]: Reference},
+  variables: {[id:string]: {[id:string]: Reference}},
 }
 
 export class CompilerWatcher extends Watcher {
@@ -88,9 +88,17 @@ export class CompilerWatcher extends Watcher {
     if(value === undefined) return undefined;
     let {items} = this;
     if(items[value] && items[value].type === "variable") {
-      let found = compile.variables[value];
+      let found;
+      let cur:ReferenceContext|undefined = context;
+      while(!found && cur) {
+        found = compile.variables[cur.ID] && compile.variables[cur.ID][value];
+        cur = cur.parent;
+      }
       if(!found) {
-        found = compile.variables[value] = new Reference(context);
+        if(!compile.variables[context.ID]) {
+          compile.variables[context.ID] = {};
+        }
+        found = compile.variables[context.ID][value] = new Reference(context);
       }
       return found;
     }
@@ -240,8 +248,8 @@ export class CompilerWatcher extends Watcher {
             let compiled = choose.branches[branchIx];
             inContext(compiled, () => {
               this.compileFlow(compile, compiled, branch.constraints);
+              choose.setBranchInputs(branchIx, compiled.context.getInputReferences());
             })
-            choose.setBranchInputs(branchIx, compiled.context.getInputReferences());
             branchIx++;
           }
         });
