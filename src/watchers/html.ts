@@ -282,7 +282,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         let elem = find("html/element");
         not(() => find("html/element", {children: elem}));
         return [
-          elem.add("tag", "html/root");
+          elem.add("tag", "html/root")
         ];
       })
       .bind("Create an instance for each child of an external root.", ({find, record, lib, not}) => {
