@@ -8,6 +8,7 @@ import {RawValue, Change, RawEAV, RawEAVC, Register, isRegister, GlobalInterner,
 import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
+import * as Parser from "../parser/parser";
 import "./stdlib";
 import {SumAggregate} from "./stdlib";
 import {v4 as uuid} from "uuid";
@@ -1814,5 +1815,13 @@ export class Program {
     this.exporter.triggerOnObjects(this.lastWatch, handler);
 
     return this;
+  }
+
+  load(str:string) {
+    let results = Parser.parseDoc(str);
+    this.attach("ui");
+    this.attach("html");
+    this.attach("compiler");
+    this.inputEAVs(results.results.eavs);
   }
 }
