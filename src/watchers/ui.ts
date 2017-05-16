@@ -125,7 +125,20 @@ export class UIWatcher extends Watcher {
       .bind("Decorate link elements as html.", ({find, record}) => {
         let elem = find("ui/link");
         return [elem.add("tag", "html/element").add("tagname", "link")];
+      })
+      .bind("Decorate div elements as html.", ({find, record}) => {
+        let elem = find("ui/div");
+        return [elem.add("tag", "html/element").add("tagname", "div")];
+      })
+      .bind("Decorate span elements as html.", ({find, record}) => {
+        let elem = find("ui/span");
+        return [elem.add("tag", "html/element").add("tagname", "span")];
+      })
+      .bind("Decorate img elements as html.", ({find, record}) => {
+        let elem = find("ui/img");
+        return [elem.add("tag", "html/element").add("tagname", "img")];
       });
+
 
     // Buttons
     this.program
