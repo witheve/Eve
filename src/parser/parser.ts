@@ -1689,7 +1689,7 @@ function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
         eavs.push([exprId, "arg", argId]);
         eavs.push([argId, "name", arg.attribute]);
         if(arg.value.type === "parenthesis") {
-          for(let value of arg.value) {
+          for(let value of arg.value.items) {
             eavs.push([argId, "value", asFactValue(vars, value)]);
           }
         } else {
