@@ -895,6 +895,13 @@ export class Scan implements Constraint {
   isInput:boolean = false;
   proposal:Proposal = {cardinality: 0, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), proposer: this};
 
+  toKey() {
+    let e = isRegister(this.e) ? `$reg(${this.e.offset})` : this.e;
+    let a = isRegister(this.a) ? `$reg(${this.a.offset})` : this.a;
+    let v = isRegister(this.v) ? `$reg(${this.v.offset})` : this.v;
+    return `${e}|${a}|${v}`
+  }
+
   /**
    * Resolve each scan field.
    * The resolved object may contain one of three possible value types:

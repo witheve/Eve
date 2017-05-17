@@ -483,11 +483,20 @@ export class FlowLevel {
 
   compile(nodes:Runtime.Node[], injections:Node[], toPass:Node[]):Runtime.Node[] {
     let items = this.toConstraints(injections);
+    let seen:any = {};
     let constraints:Runtime.Constraint[] = [];
     for(let toCompile of items) {
       let compiled = toCompile.compile();
       for(let item of compiled) {
-        constraints.push(item as Runtime.Constraint);
+        if(!(item instanceof Runtime.Scan)) {
+          constraints.push(item as Runtime.Constraint);
+        } else {
+          let key = item.toKey();
+          if(!seen[key]) {
+            seen[key] = true;
+            constraints.push(item as Runtime.Constraint);
+          }
+        }
       }
     }
 

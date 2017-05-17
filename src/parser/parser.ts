@@ -1310,6 +1310,8 @@ export class Parser extends chev.Parser {
       from.push(self.CONSUME(CloseString));
       if(args.length === 1 && args[0].type === "constant") {
         return args[0];
+      } else if(args.length === 0) {
+        return makeNode("constant", {value: "", from});
       }
       let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
       let expression = makeNode("expression", {op: "eve/internal/concat", args, variable, from});
