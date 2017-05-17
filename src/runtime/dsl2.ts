@@ -150,6 +150,10 @@ export class Reference {
     }
   }
 
+  toString() {
+    return `${this.__context.ID}.${this.__ID}`;
+  }
+
   __proxy() {
     return new Proxy(this, {
       get: (obj:any, prop:string) => {
@@ -311,6 +315,12 @@ export class ReferenceContext {
 
         if((a as Reference).__forceRegister || (b as Reference).__forceRegister) {
           forcedMoves.push([a,b]);
+        } else if(!isRegister(neueB) && !isRegister(neueA) && neueA != neueB) {
+          throw new Error(`Attempting to unify two disparate static values: \`${neueA}\` and \`${neueB}\``);
+        } else if(isReference(a) && !isRegister(neueB)) {
+          neueA = bValue;
+        } else if(isReference(b) && !isRegister(neueA)) {
+          neueB = aValue;
         } else if(isReference(a) && isReference(b)) {
           if(this.selectReference(refIds, a, b) === b) {
             neueA = bValue;
@@ -328,10 +338,12 @@ export class ReferenceContext {
         }
 
         if(aValue !== neueA) {
+          // console.log("Unifying A", a.toString(), b.toString(), neueA, neueB);
           values[(a as Reference).__ID] = neueA;
           changed = true;
         }
         if(bValue !== neueB) {
+          // console.log("Unifying B", a.toString(), b.toString(), neueA, neueB);
           values[(b as Reference).__ID] = neueB;
           changed = true;
         }
