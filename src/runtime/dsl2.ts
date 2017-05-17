@@ -502,7 +502,7 @@ export class FlowLevel {
     } else if(nodes.length) {
       join = nodes.pop() as Runtime.Node;
     } else {
-      throw new Error("Query with zero constraints.")
+      join = new Runtime.NoopJoinNode([]);
     }
 
     // @NOTE: We need to unify all of our sub-blocks along with ourselves

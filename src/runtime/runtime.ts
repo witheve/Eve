@@ -1922,6 +1922,17 @@ export class DownstreamJoinNode extends JoinNode {
   }
 }
 
+export class NoopJoinNode extends JoinNode {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
+    if(!this.dormant) {
+      this.prefixToResults(context, this.constraints, prefix, round, results);
+      this.dormant = true;
+      return true
+    }
+    return false;
+  }
+}
+
 export class WatchNode extends Node {
   traceType = TraceNode.Watch;
   constructor(public e:ID|Register,
