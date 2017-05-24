@@ -281,12 +281,12 @@ export class ReferenceContext {
     let refID = refIds[ref.__ID] || ref.__ID;
     let ref2ID = refIds[ref2.__ID] || ref2.__ID;
     if(!this.owns(ref) && !this.owns(ref2)) {
-      if(refID < ref2ID) return ref2;
+      if(ref2ID < refID) return ref2;
       return ref;
     }
     if(!this.owns(ref)) return ref;
     if(!this.owns(ref2)) return ref2;
-    if(refID < ref2ID) return ref2;
+    if(ref2ID < refID) return ref2;
     return ref;
   }
 
