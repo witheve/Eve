@@ -77,8 +77,11 @@ function printWatchNode(node:WatchNode) {
   return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
 }
 
-function printFlow(flow:ChooseFlow|UnionFlow|MergeAggregateFlow):string {
-  if(flow instanceof MergeAggregateFlow) {
+function printFlow(flow:LinearFlow|ChooseFlow|UnionFlow|MergeAggregateFlow):string {
+  if(flow instanceof LinearFlow) {
+    let content = flow.nodes.map(printNode).join(",\n");
+    return `LinearFlow([\n  ${indent(content, 2)}\n])`;
+  } else if(flow instanceof MergeAggregateFlow) {
     let keys = "[" + flow.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
     let outs = "[" + flow.registersToMerge.map((r) => `[${r.offset}]`).join(", ") + "]";
     let name, grp, proj;
@@ -91,6 +94,7 @@ function printFlow(flow:ChooseFlow|UnionFlow|MergeAggregateFlow):string {
       grp = flow.right.right.groupRegisters;
       proj = flow.right.right.projectRegisters;
     }
+
     let projection = proj && "[" + proj.map((r) => `[${r.offset}]`).join(", ") + "]";
     let group = grp && "[" + grp.map((r) => `[${r.offset}]`).join(", ") + "]";
     return `MergeAggregateFlow({
@@ -130,6 +134,8 @@ export function printNode(node:Node):string {
     return printFlow(node);
   } else if(node instanceof UnionFlow) {
     return printFlow(node);
+  } else if(node instanceof LinearFlow) {
+    return printFlow(node);
   } else if(node instanceof MergeAggregateFlow) {
     return printFlow(node);
   } else if(node instanceof BinaryJoinRight) {
@@ -139,6 +145,7 @@ export function printNode(node:Node):string {
   } else if(node instanceof AntiJoin) {
     return printAntiJoin(node);
   } else {
+    console.error(node);
     return "Unknown node type";
   }
 }
