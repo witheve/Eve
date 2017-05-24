@@ -551,7 +551,7 @@ export class FlowLevel {
     return nodes;
   }
 
-  split():FlowLevel[] {
+  split(context:ReferenceContext):FlowLevel[] {
     let maxLevel = 0;
     // if a register can be filled from the database, it doesn't need to be up-leveled,
     // since we always have a value for it from the beginning. Let's find all of those
@@ -563,6 +563,21 @@ export class FlowLevel {
       let registers = item.getRegisters();
       for(let register of registers) {
         supported[register.offset] = true;
+      }
+    }
+
+    // Every register that's an input to this level is supported by the outer context,
+    // so we don't need to level its output.
+    for(let register of context.getInputRegisters()) {
+      supported[register.offset] = true;
+    }
+
+    // Any move whose `from` is supported, has their `to` supported as well
+    for(let move of this.moves) {
+      let from = move.getInputRegisters()[0];
+      let to = move.getOutputRegisters()[0];
+      if(from && supported[from.offset]) {
+        supported[to.offset] = true;
       }
     }
 
@@ -863,7 +878,7 @@ export class LinearFlow extends DSLBase {
     }
 
     // Split our collector into levels
-    let levels = this.collector.split();
+    let levels = this.collector.split(this.context);
     let localItems = items.slice();
     for(let level of levels) {
       nodes = level.compile(nodes, items, localItems);
@@ -1624,7 +1639,26 @@ export class Union extends DSLBase {
         // comment about the definition for AggregateOuterLookup.
         if(flow.collector.aggregates.length > 0) {
           let aggMerge = compiled[0] as Runtime.MergeAggregateFlow;
-          aggMerge.left = new Runtime.AggregateOuterLookup(join, aggMerge.left, flowInputs)
+          // we have to make sure that the outer lookup fields are actually used in the join node for
+          // the aggregate merge otherwise they will never join. For example if you have:
+          //
+          // board = [#board size: N, not(winner)]
+          // winner = if N = gather/count[for: cell, per: col]
+          //             cell = [#bar board col player]
+          //             then player
+          //
+          // N is both the input to the branch as well as the output of the aggregate, but it won't
+          // be available when doing the join *before* the aggregate. If it's included in the outer
+          // lookup we'll join the board size with undefined every time and always fail.
+          let outerLookupInputs = flowInputs.filter((v:Register) => {
+            let next = aggMerge.left;
+            if(next instanceof Runtime.JoinNode) {
+              return next.registerLookup[v.offset];
+            } else {
+              throw new Error("Don't know how to handle multi-node aggregates that don't start with a join");
+            }
+          });
+          aggMerge.left = new Runtime.AggregateOuterLookup(join, aggMerge.left, outerLookupInputs)
         }
         nodes.push(new Runtime.LinearFlow(compiled));
       } else {
