@@ -2659,15 +2659,14 @@ export class ChooseFlow extends Node {
     let prev:Node|undefined;
     let ix = 0;
     for(let branch of initialBranches) {
+      let myKeys = keyRegisters[ix].concat(extraOuterJoins);
       let join;
       if(prev) {
-        let myKeys = keyRegisters[ix];
-
-        join = new BinaryJoinRight(left, branch, myKeys.concat(extraOuterJoins), registersToMerge);
+        join = new BinaryJoinRight(left, branch, myKeys, registersToMerge);
         let antijoin = new AntiJoinPresolvedRight(join, this, allKeys);
         branches.push(antijoin);
       } else {
-        join = new BinaryJoinRight(left, branch, keyRegisters[ix].concat(extraOuterJoins), registersToMerge);
+        join = new BinaryJoinRight(left, branch, myKeys, registersToMerge);
         branches.push(join);
       }
       prev = join;

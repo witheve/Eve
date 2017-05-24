@@ -987,7 +987,7 @@ export class Record extends DSLBase {
       let value = attributes[attr];
       if(isArray(value)) {
         for(let current of value) {
-          if(isReference(value)) context.register(value as Reference);
+          if(isReference(current)) context.register(current as Reference);
           attrs.push(attr, current);
         }
       } else {
