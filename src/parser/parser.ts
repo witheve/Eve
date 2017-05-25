@@ -1690,12 +1690,16 @@ function subBlockToFacts(eavs:any[], vars:any, blockId: string, block:any) {
         let argId = uuid();
         eavs.push([exprId, "arg", argId]);
         eavs.push([argId, "name", arg.attribute]);
+        let ix = 1;
         if(arg.value.type === "parenthesis") {
           for(let value of arg.value.items) {
             eavs.push([argId, "value", asFactValue(vars, value)]);
+            eavs.push([argId, "index", ix]);
+            ix++;
           }
         } else {
           eavs.push([argId, "value", asFactValue(vars, arg.value)]);
+          eavs.push([argId, "index", ix]);
         }
       }
       if(expr.returns) {

@@ -450,7 +450,9 @@ export class FlowLevel {
     } else if(node instanceof Union) {
       this.unions.push(node);
     } else if(node instanceof Move) {
-      this.moves.push(node);
+      if(!this.moves.some((v) => v.toKey() == node.toKey())) {
+        this.moves.push(node);
+      }
     } else {
       console.error("Don't know how to collect this type of node: ", node);
       throw new Error("Unknown node type sent to collect");
@@ -620,7 +622,9 @@ export class FlowLevel {
 
         let changedProvider = false;
         let providerLevel = providerToLevel[item.ID] || 0;
-        for(let input of item.getInputRegisters()) {
+        let regs = item.getInputRegisters();
+
+        for(let input of regs) {
           let inputInfo = leveledRegisters[input.offset];
           if(inputInfo && inputInfo.level > providerLevel) {
             changedProvider = true;
@@ -1144,6 +1148,12 @@ export class Move extends DSLBase {
     } else {
       this.to = to;
     }
+  }
+
+  toKey() {
+    let from:any = isReference(this.from) ? `[${this.from.__ID}]` : this.from;
+    let to:any = isReference(this.to) ? `[${this.to.__ID}]` : this.to;
+    return `${from}|${to}`
   }
 
   getInputRegisters():Register[] {

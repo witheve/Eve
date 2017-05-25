@@ -707,14 +707,14 @@ export class CompilerWatcher extends Watcher {
       let block = find("eve/compiler/block", {constraint: expr});
       let {arg} = expr;
       return [
-        record({block, id:expr, name:arg.name, value:arg.value})
+        record({block, id:expr, name:arg.name, value:arg.value, index:arg.index})
       ]
     })
 
-    me.asObjects<{block:string, id:string, name:string, value:RawValue}>(({adds, removes}) => {
+    me.asObjects<{block:string, id:string, name:string, value:RawValue, index:number}>(({adds, removes}) => {
       let {items} = this;
       for(let key in adds) {
-        let {block, id, name, value} = adds[key];
+        let {block, id, name, value, index} = adds[key];
         let found = items[id];
         if(!found) { throw new Error("args for a non existent expression"); }
         let {argNames, returnNames} = FunctionConstraint.fetchInfo(found.op)
@@ -752,18 +752,18 @@ export class CompilerWatcher extends Watcher {
       let block = find("eve/compiler/block", {constraint: expr});
       let {arg} = expr;
       return [
-        record({block, id:expr, name:arg.name, value:arg.value})
+        record({block, id:expr, name:arg.name, value:arg.value, index:arg.index})
       ]
     })
 
-    me.asObjects<{block:string, id:string, name:string, value:RawValue}>(({adds, removes}) => {
+    me.asObjects<{block:string, id:string, name:string, value:RawValue, index:number}>(({adds, removes}) => {
       let {items} = this;
       for(let key in adds) {
-        let {block, id, name, value} = adds[key];
+        let {block, id, name, value, index} = adds[key];
         let found = items[id];
         if(!found) { throw new Error("args for a non existent expression"); }
         let args = found.namedArgs[name] || [];
-        args.push(value);
+        args[index - 1] = value;
         found.namedArgs[name] = args;
         this.queue(block);
       }
