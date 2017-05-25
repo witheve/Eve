@@ -149,6 +149,18 @@ export class UIWatcher extends Watcher {
       .bind("Decorate h3 elements as html.", ({find, record}) => {
         let elem = find("ui/h3");
         return [elem.add("tag", "html/element").add("tagname", "h3")];
+      })
+      .bind("Decorate ul elements as html.", ({find, record}) => {
+        let elem = find("ui/ul");
+        return [elem.add("tag", "html/element").add("tagname", "ul")];
+      })
+      .bind("Decorate ol elements as html.", ({find, record}) => {
+        let elem = find("ui/ol");
+        return [elem.add("tag", "html/element").add("tagname", "ol")];
+      })
+      .bind("Decorate li elements as html.", ({find, record}) => {
+        let elem = find("ui/li");
+        return [elem.add("tag", "html/element").add("tagname", "li")];
       });
 
 
