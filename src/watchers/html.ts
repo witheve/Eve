@@ -151,11 +151,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         if(target.classList.contains("html-autosize-input")) {
           target.size = target.value.length || 1;
         }
-        let {sentInputValues} = this;
-        if(!sentInputValues[elementId]) {
-          sentInputValues[elementId] = [];
-        }
-        sentInputValues[elementId].push(target.value);
         let eventId = createId();
         let eavs:RawEAV[] = [
           [eventId, "tag", "html/event"],
