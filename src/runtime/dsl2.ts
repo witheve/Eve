@@ -1191,8 +1191,9 @@ export class Insert extends Record {
       // we have to make our ID generation function
       let args = [];
       for(let ix = 0, len = this.attributes.length; ix < len; ix += 2) {
+        let a = this.attributes[ix];
         let v = this.attributes[ix + 1];
-        args.push(v);
+        args.push(a,v);
       }
 
       let genId = new Fn(context, "eve/internal/gen-id", args, this.reference());
