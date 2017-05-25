@@ -1001,7 +1001,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .bind("A molecule's width and height are derived from it's size.", ({find, lib:{math}, choose, record}) => {
+      .bind("A molecule's width and height are derived from it's size.", ({find, choose, record}) => {
         let molecule_cell = find("editor/molecule-list/molecule");
         let {offset, mag} = molecule_cell;
         let cell_width = 39 + 5;
@@ -1047,7 +1047,7 @@ class EditorWatcher extends Watcher {
         let ix = gather(atom_cell.atom.node.sort, atom_cell).per(molecule).sort();
         return [atom_cell.add("sort", ix)];
       })
-      .bind("Position atom cells in a spiral.", ({find, choose, lib:{math}, record}) => {
+      .bind("Position atom cells in a spiral.", ({find, choose, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom} = atom_cell;
         let {x, y} = find("spiral", {row: 0, sort: atom_cell.sort});
@@ -1345,7 +1345,7 @@ class EditorWatcher extends Watcher {
 
       .bind("Compute is_record based on the values of existing node attributes.", ({find, lib:{string}}) => {
         let existing = find("editor/existing-node-attribute");
-        string.index_of(existing.value, "|"); // @FIXME: hacky gen id detection.
+        string["index-of"](existing.value, "|"); // @FIXME: hacky gen id detection.
         return [existing.add("is_record", "true")];
       })
   }

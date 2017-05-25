@@ -127,28 +127,28 @@ makeFunction({
 
 makeFunction({
   name: "math/sin",
-  args: {deg: "number"},
+  args: {degrees: "number"},
   returns: {result: "number"},
-  apply: (deg:number) => {
-    return [Math.sin(deg/180 * Math.PI)];
+  apply: (degrees:number) => {
+    return [Math.sin(degrees/180 * Math.PI)];
   }
 });
 
 makeFunction({
   name: "math/cos",
-  args: {deg: "number"},
+  args: {degrees: "number"},
   returns: {result: "number"},
-  apply: (deg:number) => {
-    return [Math.cos(deg/180 * Math.PI)];
+  apply: (degrees:number) => {
+    return [Math.cos(degrees/180 * Math.PI)];
   }
 });
 
 makeFunction({
   name: "math/tan",
-  args: {deg: "number"},
+  args: {degrees: "number"},
   returns: {result: "number"},
-  apply: (deg:number) => {
-    return [Math.tan(deg/180 * Math.PI)];
+  apply: (degrees:number) => {
+    return [Math.tan(degrees/180 * Math.PI)];
   }
 });
 
