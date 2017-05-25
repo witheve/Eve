@@ -1,7 +1,6 @@
-import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs, createId} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs, createId, asJS} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
-import {v4 as uuid} from "uuid";
 
 export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, listeners?: {[event: string]: boolean}}
 
@@ -35,13 +34,13 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     return elem;
   }
 
-  addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
+  addAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void {
     // @TODO: Error checking to ensure we don't double-set attributes.
     if(attribute == "value") {
       if(instance.classList.contains("html-autosize-input") && instance instanceof HTMLInputElement) {
         instance.size = (instance.value || "").length || 1;
       }
-      (instance as HTMLInputElement).value = ""+maybeIntern(value);
+      (instance as HTMLInputElement).value = ""+value;
     } else if(attribute == "tag") {
       if(value === "html/autosize-input" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.size = (instance.value || "").length || 1);
@@ -50,14 +49,16 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       } else if(value === "html/trigger/blur" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.blur());
       } else {
-        instance.setAttribute(attribute, ""+maybeIntern(value));
+        instance.setAttribute(attribute, ""+value);
       }
+    } else if(value === false) {
+      instance.removeAttribute(attribute as string);
     } else {
-      instance.setAttribute(attribute as string, ""+maybeIntern(value));
+      instance.setAttribute(attribute as string, ""+maybeIntern(value as RawValue));
     }
   }
 
-  removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
+  removeAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void {
     // @TODO: Error checking to ensure we don't double-remove attributes or remove the wrong value.
     instance.removeAttribute(attribute as string);
     if(attribute === "value") {
