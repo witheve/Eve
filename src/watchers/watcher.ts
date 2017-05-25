@@ -135,9 +135,20 @@ export class Exporter {
 // Convenience Diff Handlers
 //------------------------------------------------------------------------------
 
+export function _isId(value?:RawValue):boolean {
+  return (""+value).indexOf("|") != -1;
+}
+
 export function maybeIntern(value?:RawValue):ID|RawValue|undefined {
   if(value === undefined) return value;
-  return (""+value).indexOf("|") === -1 ? value : GlobalInterner.get(value);
+  return _isId(value) ? GlobalInterner.get(value) : value;
+}
+
+export function asJS(value?:RawValue):number|string|boolean|undefined {
+  if(typeof value === "number") return value;
+  if(value === "true") return true;
+  if(value === "false") return false;
+  return value;
 }
 
 export function forwardDiffs(destination:Program, name:string = "Unnamed", debug = false) {
