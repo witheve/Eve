@@ -267,7 +267,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "string/index_of",
+  name: "string/index-of",
   args: {text: "string", substring: "string"},
   returns: {result: "number"},
   apply: function(text:string, substring:string) {

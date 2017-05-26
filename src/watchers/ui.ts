@@ -399,7 +399,7 @@ export class UIWatcher extends Watcher {
       .bind("Completions that match the current input value are matches.", ({find, lib:{string}}) => {
         let autocomplete = find("ui/autocomplete");
         let {value, completion} = autocomplete;
-        let ix = string.index_of(string.lowercase(completion.text), string.lowercase(value));
+        let ix = string["index-of"](string.lowercase(completion.text), string.lowercase(value));
         return [autocomplete.add("match", completion)];
       })
 
