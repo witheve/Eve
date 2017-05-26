@@ -87,7 +87,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     }
 
     this._sendEvent(eavs);
-    console.log(eavs);
   }
 
   //------------------------------------------------------------------

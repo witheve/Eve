@@ -313,7 +313,6 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         return [instance.add("class", klass)];
       })
       .asDiffs((diff) => {
-        console.log(diff);
         for(let [e, a, v] of diff.removes) {
           let instance = this.instances[e];
           if(!instance) continue;
