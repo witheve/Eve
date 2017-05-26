@@ -357,7 +357,10 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       .commit("When the url changes, delete its previous segments.", ({find, record}) => {
         let change = find("html/event/url-change");
         let url = find("html/url");
-        return [url.remove("hash-segment")];
+        return [
+          url.remove("hash-segment"),
+          url["hash-segment"].remove()
+        ];
       })
       .commit("When the url changes, commit its new state.", ({find, lookup, record}) => {
         let change = find("html/event/url-change");
@@ -368,7 +371,8 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         ];
       });
 
-    this._updateURL();
+    //setTimeout(() => this._updateURL(), 100);
+    this._updateURL()
   }
 }
 
