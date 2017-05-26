@@ -32,128 +32,22 @@ export function printField(field:ScanField) {
   return typeof raw === "string" ? `"${raw}"` : raw;
 }
 
+export function printFieldArray(fields:ScanField[]) {
+  return "[" + fields.map(printField).join(", ") + "]";
+}
+
 export function printPrefix(prefix:Prefix) {
   return prefix.map((v) => GlobalInterner.reverse(v));
 }
 
-function printScan(constraint:Scan) {
-  return `Scan(${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)})`;
+function toString(x:any):string {
+  if(x && x.toString) return x.toString();
+  console.warn("No toString specified for", x);
+  return "";
 }
-
-function printFunction(constraint:FunctionConstraint) {
-  let params = constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v])).join(", ");
-  let restParams = constraint.restFields.map(printField).join(", ");
-  return `FunctionConstraint("${constraint.name}", ${params} ${restParams ? `, [${restParams}]` : ""})`;
-}
-
-export function printConstraint(constraint:Constraint) {
-  if(constraint instanceof Scan) {
-    return printScan(constraint);
-  } else if(constraint instanceof FunctionConstraint) {
-    return printFunction(constraint);
-  } else if(constraint instanceof MoveConstraint) {
-    return `Move(${printField(constraint.from)}, ${printField(constraint.to)})`;
-  } else {
-    return "Unknown constraint type";
-  }
-}
-(global as any).printConstraint = printConstraint;
-
-function printJoinNode(node:JoinNode) {
-  return "JoinNode([\n  " + node.constraints.map(printConstraint).join("\n  ") + "\n])";
-}
-
-function printOutputNode(node:OutputNode) {
-  let type;
-  if(node instanceof CommitRemoveNode) type = "CommitRemove";
-  else if(node instanceof CommitInsertNode) type = "Commit";
-  else if(node instanceof RemoveNode) type = "Remove";
-  else if(node instanceof InsertNode) type = "Insert";
-  else return node;
-  return `${type}: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
-}
-
-function printWatchNode(node:WatchNode) {
-  return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
-}
-
-function printFlow(flow:LinearFlow|ChooseFlow|UnionFlow|MergeAggregateFlow):string {
-  if(flow instanceof LinearFlow) {
-    let content = flow.nodes.map(printNode).join(",\n");
-    return `LinearFlow([\n  ${indent(content, 2)}\n])`;
-  } else if(flow instanceof MergeAggregateFlow) {
-    let keys = "[" + flow.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
-    let outs = "[" + flow.registersToMerge.map((r) => `[${r.offset}]`).join(", ") + "]";
-    let name, grp, proj;
-    if(flow.right instanceof AggregateNode || flow.right instanceof SortNode) {
-      name = flow.right.name;
-      grp = flow.right.groupRegisters;
-      proj = flow.right.projectRegisters;
-    } else if(flow.right instanceof AggregateOuterLookup && (flow.right.right instanceof AggregateNode || flow.right.right instanceof SortNode)) {
-      name = flow.right.right.name;
-      grp = flow.right.right.groupRegisters;
-      proj = flow.right.right.projectRegisters;
-    }
-
-    let projection = proj && "[" + proj.map((r) => `[${r.offset}]`).join(", ") + "]";
-    let group = grp && "[" + grp.map((r) => `[${r.offset}]`).join(", ") + "]";
-    return `MergeAggregateFlow({
-  aggregate: "${(flow.right as AggregateNode).name}",
-  keys: ${keys},
-  group: ${group},
-  projection: ${projection},
-  outs: ${outs},
-  left: ${indent(printNode(flow.left), 2)}
-})`;
-  }
-
-  let name;
-  if(flow instanceof ChooseFlow) name = "ChooseFlow";
-  if(flow instanceof UnionFlow) name = "UnionFlow";
-  let branchText = (flow.branches as Node[]).map((branch) => indent(printNode(branch), 4)).join(",\n    ");
-  return `${name}({
-  left: ${indent(printNode(flow.left), 2)},
-  branches: [\n    ${branchText}\n)}]
-})`;
-}
-
-function printAntiJoin(node:AntiJoin):string {
-  let left = indent(printNode(node.left), 2);
-  let right = indent(printNode(node.right), 2);
-  return `Antijoin({\n  left: ${left},\n  right: ${right}\n})`;
-}
-
-export function printNode(node:Node):string {
-  if(node instanceof JoinNode) {
-    return printJoinNode(node);
-  } else if(node instanceof WatchNode) {
-    return printWatchNode(node);
-  } else if(node instanceof OutputWrapperNode) {
-    return "OutputWrapperNode([\n  " + node.nodes.map(printOutputNode).join("\n  ") + "\n])";
-  } else if(node instanceof ChooseFlow) {
-    return printFlow(node);
-  } else if(node instanceof UnionFlow) {
-    return printFlow(node);
-  } else if(node instanceof LinearFlow) {
-    return printFlow(node);
-  } else if(node instanceof MergeAggregateFlow) {
-    return printFlow(node);
-  } else if(node instanceof BinaryJoinRight) {
-    return `BinaryJoinRight(${printNode(node.right)})`;
-  } else if(node instanceof AntiJoinPresolvedRight) {
-    return `AntiJoinPresolvedRight(${printNode(node.left)})`;
-  } else if(node instanceof AntiJoin) {
-    return printAntiJoin(node);
-  } else {
-    console.error(node);
-    return "Unknown node type";
-  }
-}
-(global as any).printNode = printNode;
 
 export function printBlock(block:Block):string {
-  let content = block.nodes.map(printNode).join(",\n");
-  return `Block("${block.name}", [\n  ${indent(content, 2)}\n])`;
+  return block.toString();
 }
 (global as any).printBlock = printBlock;
 
@@ -751,6 +645,7 @@ export enum ApplyInputState {
 
 export interface Constraint {
   isInput:boolean;
+  toString():string;
   setup():void;
   getRegisters():Register[];
   applyInput(input:Change, prefix:Prefix):ApplyInputState;
@@ -796,6 +691,10 @@ export class MoveConstraint {
 
   isInput = false;
   isStatic = true;
+
+  toString() {
+    return `Move(${printField(this.from)}, ${printField(this.to)})`;
+  }
 
   setup():void {
     if(isRegister(this.from)) {
@@ -901,6 +800,10 @@ export class Scan implements Constraint {
 
   isInput:boolean = false;
   proposal:Proposal = {cardinality: 0, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), proposer: this};
+
+  toString() {
+    return `Scan(${printField(this.e)} ${printField(this.a)} ${printField(this.v)} ${printField(this.n)})`;
+  }
 
   toKey() {
     let e = isRegister(this.e) ? `$reg(${this.e.offset})` : this.e;
@@ -1182,6 +1085,12 @@ export class FunctionConstraint implements Constraint {
   protected registerLookup:boolean[] = createArray();
   protected applyInputs:(RawValue|RawValue[])[] = createArray();
   protected applyRestInputs:RawValue[] = createArray();
+
+  toString() {
+    let params = this.fieldNames.map((v) => v + ": " + printField(this.fields[v])).join(", ");
+    let restParams = this.restFields.map(printField).join(", ");
+    return `FunctionConstraint("${this.name}", ${params} ${restParams ? `, [${restParams}]` : ""})`;
+  }
 
   // We precompute the registers we're interested in for fast accepts.
   setup() {
@@ -1548,6 +1457,11 @@ export abstract class Node {
   ID = Node.NodeID++;
   traceType:TraceNode;
   results = new Iterator<Prefix>();
+
+  toBranchString():string {
+    return this.toString();
+  }
+
   /**
    * Evaluate the node in the context of the currently solved prefix,
    * returning a set of valid prefixes to continue the query as
@@ -1646,7 +1560,10 @@ export class JoinNode extends Node {
     this.registerArrays = registers;
     this.registerLength = registerLength;
     this.proposedResultsArrays = proposedResultsArrays;
+  }
 
+  toString() {
+    return "JoinNode([\n  " + this.constraints.map(toString).join("\n  ") + "\n])";
   }
 
   findAffectedConstraints(input:Change, prefix:Prefix):Iterator<Constraint> {
@@ -1960,6 +1877,10 @@ export class WatchNode extends Node {
   protected resolved:ResolvedFields = {};
   resolve = Scan.prototype.resolve;
 
+  toString() {
+    return `WatchNode(${printField(this.e)}, ${printField(this.a)}, ${printField(this.v)}, ${printField(this.n)})`;
+  }
+
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
@@ -1985,6 +1906,10 @@ export class OutputWrapperNode extends Node {
   traceType = TraceNode.Output;
   constructor(public nodes:OutputNode[]) {
     super();
+  }
+
+  toString() {
+    return `OutputWrapper([${this.nodes.length ? "\n  " : ""}${indent(this.nodes.map(toString).join("\n"), 2)}])`;
   }
 
   binds = new Iterator<Change>();
@@ -2032,6 +1957,10 @@ export class InsertNode implements OutputNode {
     this.resolve = new Function("prefix", parts.join("\n")) as (prefix:Prefix) => ResolvedEAVN;
   }
 
+  toString() {
+    return `InsertNode(${printField(this.e)}, ${printField(this.a)}, ${printField(this.v)}, ${printField(this.n)})`;
+  }
+
   setupRegister(field:EAVNField, parts:string[]) {
     let value = this[field];
     if(isRegister(value)) {
@@ -2066,6 +1995,10 @@ export class InsertNode implements OutputNode {
 }
 
 export class CommitInsertNode extends InsertNode {
+  toString() {
+    return `CommitInsertNode(${printField(this.e)}, ${printField(this.a)}, ${printField(this.v)}, ${printField(this.n)})`;
+  }
+
   output(change:Change, binds:Iterator<Change>, commits:Iterator<Change>) {
     commits.push(change);
   }
@@ -2073,6 +2006,10 @@ export class CommitInsertNode extends InsertNode {
 
 export class RemoveNode extends InsertNode {
   multiplier:number = -1;
+
+  toString() {
+    return `RemoveNode(${printField(this.e)}, ${printField(this.a)}, ${printField(this.v)}, ${printField(this.n)})`;
+  }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, binds:Iterator<Change>, commits:Iterator<Change>):boolean {
     let resolved = this.resolve(prefix);
@@ -2100,6 +2037,10 @@ export class RemoveNode extends InsertNode {
 }
 
 export class CommitRemoveNode extends CommitInsertNode {
+  toString() {
+    return `CommitRemoveNode(${printField(this.e)}, ${printField(this.a)}, ${printField(this.v)}, ${printField(this.n)})`;
+  }
+
   multiplier = -1;
 
   protected _exec = RemoveNode.prototype.exec;
@@ -2120,6 +2061,11 @@ export class LinearFlow extends Node {
 
   constructor(public nodes:Node[]) {
     super();
+  }
+
+  toString() {
+    let content = this.nodes.map(toString).join(",\n");
+    return `LinearFlow([\n  ${indent(content, 2)}\n])`;
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
@@ -2408,6 +2354,30 @@ export class BinaryJoinRight extends BinaryFlow {
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
   }
 
+  _nodeName:string = "BinaryJoinRight";
+
+  toString() {
+    let keys = "[" + this.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
+    let merge = "[" + this.registersToMerge.map((r) => `[${r.offset}]`).join(", ") + "]";
+
+    return `${this._nodeName}({
+  keys: ${keys},
+  merge: ${merge},
+  left: ${indent(toString(this.left), 2)},
+  right: ${indent(toString(this.right), 2)}
+})`;
+  }
+  toBranchString() {
+    let keys = "[" + this.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
+    let merge = "[" + this.registersToMerge.map((r) => `[${r.offset}]`).join(", ") + "]";
+
+    return `${this._nodeName}({
+  keys: ${keys},
+  merge: ${merge},
+  right: ${indent(toString(this.right), 2)}
+})`;
+  }
+
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     // debug("    Binary Join Right:")
     let {left, right} = this;
@@ -2496,6 +2466,16 @@ export class AntiJoin extends BinaryFlow {
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
   }
 
+  toString() {
+    let left = indent(toString(this.left), 2);
+    let right = indent(toString(this.right), 2);
+    return `Antijoin({\n  left: ${left},\n  right: ${right}\n})`;
+  }
+  toBranchString() {
+    let right = indent(toString(this.right), 2);
+    return `Antijoin({\n  right: ${right}\n})`;
+  }
+
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     // debug("            antijoin:")
     return super.exec(context,input,prefix,transaction,round,results,changes);
@@ -2561,6 +2541,13 @@ export class AntiJoin extends BinaryFlow {
 }
 
 export class AntiJoinPresolvedRight extends AntiJoin {
+  toString() {
+    return `AntiJoinPresolvedRight(${toString(this.left)})`;
+  }
+  toBranchString() {
+    return `AntiJoinPresolvedRight(${this.left.toBranchString()})`;
+  }
+
   traceType = TraceNode.AntiJoinPresolvedRight;
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {left, right} = this;
@@ -2593,6 +2580,15 @@ export class UnionFlow extends Node {
       this.branches.push(new BinaryJoinRight(left, branch, keyRegisters[ix].concat(extraOuterJoins), registersToMerge));
       ix++;
     }
+  }
+
+  toString() {
+    let name;
+    let branchText = (this.branches as Node[]).map((branch) => indent(branch.toBranchString(), 4)).join(",\n    ");
+    return `UnionFlow({
+  left: ${indent(toString(this.left), 2)},
+  branches: [\n    ${branchText}\n)}]
+})`;
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
@@ -2676,6 +2672,16 @@ export class ChooseFlow extends Node {
     }
   }
 
+  toString() {
+    let name;
+    let branchText = (this.branches as Node[]).map((branch) => indent(branch.toBranchString(), 4)).join(",\n    ");
+    return `ChooseFlow({
+  left: ${indent(toString(this.left), 2)},
+  branches: [\n    ${branchText}\n)}]
+})`;
+  }
+
+
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {tracer} = context;
     let {branches, left} = this;
@@ -2730,6 +2736,8 @@ export class ChooseFlow extends Node {
 }
 
 export class MergeAggregateFlow extends BinaryJoinRight {
+  _nodeName:string = "MergeAggregateFlow";
+
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     // debug("        AGG MERGE");
     let result;
@@ -2778,6 +2786,7 @@ export class MergeAggregateFlow extends BinaryJoinRight {
 // value it has seen from the outer and makes sure that each right has a join with
 // it.
 export class AggregateOuterLookup extends BinaryFlow {
+  _nodeName:string = "AggregateOuterLookup";
   traceType = TraceNode.AggregateOuterLookup;
   keyFunc:KeyFunction;
   leftIndex:KeyOnlyIntermediateIndex = new KeyOnlyIntermediateIndex();
@@ -2859,6 +2868,14 @@ export abstract class AggregateNode extends Node {
     for(let reg of resultRegisters) {
       this.registerLookup[reg.offset] = true;
     }
+  }
+
+  toString() {
+    let groups = printFieldArray(this.groupRegisters);
+    let projects = printFieldArray(this.projectRegisters);
+    let inputs = printFieldArray(this.inputs);
+    let results = printFieldArray(this.resultRegisters);
+    return `AggregateNode(${this.name}, ${groups}, ${projects}, ${inputs}, ${results})`;
   }
 
   groupPrefix(group:string, prefix:Prefix) {
@@ -3196,6 +3213,11 @@ export class Block {
 
   results = new Iterator<Prefix>();
   initial:Prefix = createArray();
+
+  toString() {
+    let content = this.nodes.map(toString).join(",\n");
+    return `Block("${this.name}", [\n  ${indent(content, 2)}\n])`;
+  }
 
   exec(context:EvaluationContext, input:Change, transaction:Transaction):boolean {
     this.results.clear();
