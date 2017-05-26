@@ -2620,7 +2620,7 @@ export class UnionFlow extends Node {
       // all the left prefixes.
       left.results = this.emptyResults;
       leftResults.reset();
-      if(node.keyRegisters.length) {
+      if(node.keyRegisters.length && input !== BLOCK_ADD && input !== BLOCK_REMOVE) {
         while((leftPrefix = leftResults.next()) !== undefined) {
           tracer.node(node, leftPrefix);
           node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, node.results, changes);
@@ -2708,7 +2708,7 @@ export class ChooseFlow extends Node {
       this.results = this.emptyResults;
       left.results = this.emptyResults;
       leftResults.reset();
-      if(node.keyRegisters.length) {
+      if(node.keyRegisters.length && input !== BLOCK_ADD && input !== BLOCK_REMOVE) {
         while((leftPrefix = leftResults.next()) !== undefined) {
           tracer.node(node, leftPrefix);
           node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, node.results, changes);

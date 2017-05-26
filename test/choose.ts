@@ -417,6 +417,14 @@ test("Choose: filter and expression-only dynamic branches", (assert) => {
     [3, "radometer", 4, 1],
     [4, "radometer", 12, 1]
   ]);
+
+  verify(assert, prog, [
+    [1, "radness", 0, 0, -1],
+    [1, "radness", 8],
+  ], [
+    [1, "radometer", 24, 1],
+    [1, "radometer", 0, 1, -1],
+  ]);
   assert.end();
 });
 
