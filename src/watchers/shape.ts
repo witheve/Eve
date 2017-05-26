@@ -111,7 +111,7 @@ class ShapeWatcher extends Watcher {
       let tri_width = side * 0.86603;
 
       let width = math.round(2 * tri_width + gap);
-      let x_offset = math.round(math.mod(math.abs(y_ix), 2) * width / 2);
+      let x_offset = math.round(math.mod(math.absolute(y_ix), 2) * width / 2);
       let height = math.round(side + tri_height + top_gap);
 
       let x = math.round(width * x_ix + x_offset);
@@ -137,8 +137,8 @@ class ShapeWatcher extends Watcher {
         let tri_width = side * 0.86603;
         let [pad] = choose(() => hex.lineWidth, () => 0);
         let dpad = 2 * pad;
-        let width = math.ceil(2 * tri_width + dpad);
-        let height = math.ceil(2 * side + dpad);
+        let width = math.ceiling(2 * tri_width + dpad);
+        let height = math.ceiling(2 * side + dpad);
 
 
         return [
@@ -183,7 +183,7 @@ class ShapeWatcher extends Watcher {
   }
 
   hexagonPath() {
-    this.program.bind("Decorate shape/hexagon-path as a canvas/path", ({find, lib:{math}, record}) => {
+    this.program.bind("Decorate shape/hexagon-path as a canvas/path", ({find, record}) => {
       let hex = find("shape/hexagon-path");
       let {x, y, side} = hex;
 

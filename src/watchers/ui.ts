@@ -406,7 +406,7 @@ export class UIWatcher extends Watcher {
       .bind("Matches are sorted by length.", ({find, lib:{string}}) => {
         let autocomplete = find("ui/autocomplete");
         let {match} = autocomplete;
-        let sort = string.codepoint_length(match.text);
+        let sort = string["codepoint-length"](match.text);
         return [match.add("sort", sort)];
       })
 
