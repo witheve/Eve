@@ -2620,10 +2620,12 @@ export class UnionFlow extends Node {
       // all the left prefixes.
       left.results = this.emptyResults;
       leftResults.reset();
-      while((leftPrefix = leftResults.next()) !== undefined) {
-        tracer.node(node, leftPrefix);
-        node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, node.results, changes);
-        tracer.pop(TraceFrameType.Node);
+      if(node.keyRegisters.length) {
+        while((leftPrefix = leftResults.next()) !== undefined) {
+          tracer.node(node, leftPrefix);
+          node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, node.results, changes);
+          tracer.pop(TraceFrameType.Node);
+        }
       }
       // set the left results back to the real results
       left.results = tempLeftResults;
@@ -2706,10 +2708,12 @@ export class ChooseFlow extends Node {
       this.results = this.emptyResults;
       left.results = this.emptyResults;
       leftResults.reset();
-      while((leftPrefix = leftResults.next()) !== undefined) {
-        tracer.node(node, leftPrefix);
-        node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, node.results, changes);
-        tracer.pop(TraceFrameType.Node);
+      if(node.keyRegisters.length) {
+        while((leftPrefix = leftResults.next()) !== undefined) {
+          tracer.node(node, leftPrefix);
+          node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, node.results, changes);
+          tracer.pop(TraceFrameType.Node);
+        }
       }
       // per above, make sure we set our results back to the real iterator
       this.results = tempResults;
