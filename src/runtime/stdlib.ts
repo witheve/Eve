@@ -100,55 +100,55 @@ makeFunction({
 
 makeFunction({
   name: "math/floor",
-  args: {a: "number"},
+  args: {value: "number"},
   returns: {result: "number"},
-  apply: (a:number) => {
-    return [Math.floor(a)];
+  apply: (value:number) => {
+    return [Math.floor(value)];
   }
 });
 
 makeFunction({
-  name: "math/ceil",
-  args: {a: "number"},
+  name: "math/ceiling",
+  args: {value: "number"},
   returns: {result: "number"},
-  apply: (a:number) => {
-    return [Math.ceil(a)];
+  apply: (value:number) => {
+    return [Math.ceil(value)];
   }
 });
 
 makeFunction({
   name: "math/round",
-  args: {a: "number"},
+  args: {value: "number"},
   returns: {result: "number"},
-  apply: (a:number) => {
-    return [Math.round(a)];
+  apply: (value:number) => {
+    return [Math.round(value)];
   }
 });
 
 makeFunction({
   name: "math/sin",
-  args: {a: "number"},
+  args: {degrees: "number"},
   returns: {result: "number"},
-  apply: (a:number) => {
-    return [Math.sin(a/180 * Math.PI)];
+  apply: (degrees:number) => {
+    return [Math.sin(degrees/180 * Math.PI)];
   }
 });
 
 makeFunction({
   name: "math/cos",
-  args: {a: "number"},
+  args: {degrees: "number"},
   returns: {result: "number"},
-  apply: (a:number) => {
-    return [Math.cos(a/180 * Math.PI)];
+  apply: (degrees:number) => {
+    return [Math.cos(degrees/180 * Math.PI)];
   }
 });
 
 makeFunction({
   name: "math/tan",
-  args: {a: "number"},
+  args: {degrees: "number"},
   returns: {result: "number"},
-  apply: (a:number) => {
-    return [Math.tan(a/180 * Math.PI)];
+  apply: (degrees:number) => {
+    return [Math.tan(degrees/180 * Math.PI)];
   }
 });
 
@@ -180,20 +180,20 @@ makeFunction({
 });
 
 makeFunction({
-  name: "math/abs",
-  args: {a: "number"},
+  name: "math/absolute",
+  args: {value: "number"},
   returns: {result: "number"},
-  apply: (a:number) => {
-    return [Math.abs(a)];
+  apply: (value:number) => {
+    return [Math.abs(value)];
   }
 });
 
 makeFunction({
-  name: "math/toFixed",
-  args: {a: "number", b: "number"},
+  name: "math/to-fixed",
+  args: {value: "number", to: "number"},
   returns: {result: "string"},
-  apply: (a:number, b:number) => {
-    return [a.toFixed(b)];
+  apply: (value:number, to:number) => {
+    return [value.toFixed(to)];
   }
 });
 
@@ -278,7 +278,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "string/codepoint_length",
+  name: "string/codepoint-length",
   args: {text: "string"},
   returns: {result: "number"},
   apply: function(text:string) {
