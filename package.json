@@ -1,6 +1,6 @@
 {
   "name": "witheve",
-  "version": "0.3.0-preview2",
+  "version": "0.3.0-preview3",
   "description": "Programming designed for humans",
   "keywords": [
     "language",
@@ -27,7 +27,8 @@
     "build": "tsc",
     "postinstall": "tsc",
     "prepublish": "tsc",
-    "test": "node build/test/all.js | faucet"
+    "test": "node build/test/all.js | faucet",
+    "start": "echo 'Please download the eve-starter repository to begin using Eve <https://github.com/witheve/eve-starter>.'"
   },
   "dependencies": {
     "@types/commonmark": "^0.22.29",
