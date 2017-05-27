@@ -1,7 +1,6 @@
-import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs, createId} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern, ObjectDiffs, createId, asJS} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
-import {v4 as uuid} from "uuid";
 
 export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, listeners?: {[event: string]: boolean}}
 
@@ -35,13 +34,13 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     return elem;
   }
 
-  addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
+  addAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void {
     // @TODO: Error checking to ensure we don't double-set attributes.
     if(attribute == "value") {
       if(instance.classList.contains("html-autosize-input") && instance instanceof HTMLInputElement) {
         instance.size = (instance.value || "").length || 1;
       }
-      (instance as HTMLInputElement).value = ""+maybeIntern(value);
+      (instance as HTMLInputElement).value = ""+value;
     } else if(attribute == "tag") {
       if(value === "html/autosize-input" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.size = (instance.value || "").length || 1);
@@ -50,14 +49,16 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       } else if(value === "html/trigger/blur" && instance instanceof HTMLInputElement) {
         setImmediate(() => instance.blur());
       } else {
-        instance.setAttribute(attribute, ""+maybeIntern(value));
+        instance.setAttribute(attribute, ""+value);
       }
+    } else if(value === false) {
+      instance.removeAttribute(attribute as string);
     } else {
-      instance.setAttribute(attribute as string, ""+maybeIntern(value));
+      instance.setAttribute(attribute as string, ""+maybeIntern(value as RawValue));
     }
   }
 
-  removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
+  removeAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void {
     // @TODO: Error checking to ensure we don't double-remove attributes or remove the wrong value.
     instance.removeAttribute(attribute as string);
     if(attribute === "value") {
@@ -66,7 +67,27 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     }
   }
 
-  sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
+  _updateURL(tagname = "url-change") {
+    let eventId = createId();
+    let eavs:(RawEAV|RawEAVC)[] = [
+      [eventId, "tag", "html/event"],
+      [eventId, "tag", `html/event/${tagname}`]
+    ];
+
+    let hash = window.location.hash.slice(1);
+    let ix = 1;
+    for(let segment of hash.split("/")) {
+      let segmentId = createId();
+      eavs.push(
+        [eventId, "hash-segment", segmentId],
+        [segmentId, "index", ix],
+        [segmentId, "value", segment]
+      );
+      ix += 1;
+    }
+
+    this._sendEvent(eavs);
+  }
 
   //------------------------------------------------------------------
   // Event handlers
@@ -129,11 +150,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         if(target.classList.contains("html-autosize-input")) {
           target.size = target.value.length || 1;
         }
-        let {sentInputValues} = this;
-        if(!sentInputValues[elementId]) {
-          sentInputValues[elementId] = [];
-        }
-        sentInputValues[elementId].push(target.value);
         let eventId = createId();
         let eavs:RawEAV[] = [
           [eventId, "tag", "html/event"],
@@ -221,6 +237,12 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     };
   }
 
+  _hashChangeHandler(tagname:string) {
+    return (event:HashChangeEvent) => {
+      this._updateURL(tagname);
+    };
+  }
+
   //------------------------------------------------------------------
   // Watcher handlers
   //------------------------------------------------------------------
@@ -269,15 +291,22 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     window.addEventListener("input", this._inputEventHandler("change"));
     window.addEventListener("keydown", this._keyEventHandler("key-down"));
     window.addEventListener("keyup", this._keyEventHandler("key-up"));
-
     window.addEventListener("focus", this._focusEventHandler("focus"), true);
     window.addEventListener("blur", this._focusEventHandler("blur"), true);
-
 
     document.body.addEventListener("mouseenter", this._hoverEventHandler("hover-in"), true);
     document.body.addEventListener("mouseleave", this._hoverEventHandler("hover-out"), true);
 
+    window.addEventListener("hashchange", this._hashChangeHandler("url-change"));
+
     this.program
+      .bind("Elements with no parents are roots.", ({find, record, lib, not}) => {
+        let elem = find("html/element");
+        not(() => find("html/element", {children: elem}));
+        return [
+          elem.add("tag", "html/root")
+        ];
+      })
       .bind("Create an instance for each child of an external root.", ({find, record, lib, not}) => {
         let elem = find("html/element");
         let parent = find("html/root/external", {children: elem});
@@ -310,7 +339,6 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         let {element} = find("html/event/hover-out");
         return [element.remove("tag", "html/hovered")];
       })
-
       .watch("When an element is hoverable, it subscribes to mouseover/mouseout.", ({find, record}) => {
         let elemId = find("html/listener/hover");
         let instanceId = find("html/instance", {element: elemId});
@@ -323,7 +351,27 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         let instanceId = find("html/instance", {element: elemId});
         return [record({listener: "context-menu", elemId, instanceId})]
       })
-      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs));
+      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs))
+
+      .commit("When the url changes, delete its previous segments.", ({find, record}) => {
+        let change = find("html/event/url-change");
+        let url = find("html/url");
+        return [
+          url.remove("hash-segment"),
+          url["hash-segment"].remove()
+        ];
+      })
+      .commit("When the url changes, commit its new state.", ({find, lookup, record}) => {
+        let change = find("html/event/url-change");
+        let {attribute, value} = lookup(change);
+        attribute != "tag";
+        return [
+          record("html/url").add(attribute, value)
+        ];
+      });
+
+    //setTimeout(() => this._updateURL(), 100);
+    this._updateURL()
   }
 }
 

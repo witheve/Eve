@@ -267,7 +267,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "string/index_of",
+  name: "string/index-of",
   args: {text: "string", substring: "string"},
   returns: {result: "number"},
   apply: function(text:string, substring:string) {
@@ -306,6 +306,21 @@ makeFunction({
     return [result];
   }
 });
+
+//--------------------------------------------------------------------
+// Logic
+//--------------------------------------------------------------------
+
+makeFunction({
+  name: "logic/toggle",
+  args: {value: "string"},
+  returns: {result: "string"},
+  apply: (value: string) => {
+    if(value === "true") return ["false"];
+    if(value === "false") return ["true"];
+    return [];
+  }
+})
 
 //--------------------------------------------------------------------
 // Eve internal

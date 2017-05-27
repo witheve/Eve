@@ -8,6 +8,7 @@ import {RawValue, Change, RawEAV, RawEAVC, Register, isRegister, GlobalInterner,
 import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
+import * as Parser from "../parser/parser";
 import "./stdlib";
 import {SumAggregate} from "./stdlib";
 import {v4 as uuid} from "uuid";
@@ -149,6 +150,10 @@ export class Reference {
     }
   }
 
+  toString() {
+    return `${this.__context.ID}.${this.__ID}`;
+  }
+
   __proxy() {
     return new Proxy(this, {
       get: (obj:any, prop:string) => {
@@ -185,6 +190,7 @@ export class Reference {
 //--------------------------------------------------------------------
 
 export class ReferenceContext {
+  static IDs = 0;
   static stack:ReferenceContext[] = [];
   static push(context:ReferenceContext) {
     ReferenceContext.stack.push(context);
@@ -193,6 +199,7 @@ export class ReferenceContext {
     ReferenceContext.stack.pop();
   }
 
+  ID:number;
   flow: LinearFlow;
   references:Reference[] = [];
   equalities:Value[][] = [];
@@ -202,6 +209,7 @@ export class ReferenceContext {
   maxRegisters = 0;
 
   constructor(public parent?:ReferenceContext, flow?:LinearFlow) {
+    this.ID = ReferenceContext.IDs++;
     this.flow = flow || new LinearFlow((x:LinearFlow) => []);
   }
 
@@ -222,7 +230,6 @@ export class ReferenceContext {
     }
 
     if(!this.references[ref.__ID]) this.references[ref.__ID] = ref;
-    else if(this.references[ref.__ID] !== ref) throw new Error("Different references with the same ID");
   }
 
   equality(a:Value, b:Value) {
@@ -270,14 +277,16 @@ export class ReferenceContext {
     return value;
   }
 
-  selectReference(ref:Reference, ref2:Reference) {
+  selectReference(refIds:any, ref:Reference, ref2:Reference) {
+    let refID = refIds[ref.__ID] || ref.__ID;
+    let ref2ID = refIds[ref2.__ID] || ref2.__ID;
     if(!this.owns(ref) && !this.owns(ref2)) {
-      if(ref.__ID < ref2.__ID) return ref2;
+      if(ref2ID < refID) return ref2;
       return ref;
     }
     if(!this.owns(ref)) return ref;
     if(!this.owns(ref2)) return ref2;
-    if(ref.__ID < ref2.__ID) return ref2;
+    if(ref2ID < refID) return ref2;
     return ref;
   }
 
@@ -286,6 +295,7 @@ export class ReferenceContext {
     let values:(Register | RawValue)[] = this.referenceValues;
     let forcedMoves = [];
     let changed = equalities.length > 0;
+    let refIds:any = {};
 
     let round = 0;
     let maxRound = Math.pow(this.equalities.length + 1, 2);
@@ -302,13 +312,22 @@ export class ReferenceContext {
         let neueA = aValue;
         let neueB = bValue;
 
+
         if((a as Reference).__forceRegister || (b as Reference).__forceRegister) {
           forcedMoves.push([a,b]);
+        } else if(!isRegister(neueB) && !isRegister(neueA) && neueA != neueB) {
+          throw new Error(`Attempting to unify two disparate static values: \`${neueA}\` and \`${neueB}\``);
+        } else if(isReference(a) && !isRegister(neueB)) {
+          neueA = bValue;
+        } else if(isReference(b) && !isRegister(neueA)) {
+          neueB = aValue;
         } else if(isReference(a) && isReference(b)) {
-          if(this.selectReference(a, b) === b) {
+          if(this.selectReference(refIds, a, b) === b) {
             neueA = bValue;
+            refIds[a.__ID] = refIds[b.__ID] || b.__ID
           } else {
             neueB = aValue;
+            refIds[b.__ID] = refIds[a.__ID] || a.__ID
           }
         } else if(isReference(a)) {
           neueA = bValue;
@@ -319,10 +338,12 @@ export class ReferenceContext {
         }
 
         if(aValue !== neueA) {
+          // console.log("Unifying A", a.toString(), b.toString(), neueA, neueB);
           values[(a as Reference).__ID] = neueA;
           changed = true;
         }
         if(bValue !== neueB) {
+          // console.log("Unifying B", a.toString(), b.toString(), neueA, neueB);
           values[(b as Reference).__ID] = neueB;
           changed = true;
         }
@@ -429,7 +450,9 @@ export class FlowLevel {
     } else if(node instanceof Union) {
       this.unions.push(node);
     } else if(node instanceof Move) {
-      this.moves.push(node);
+      if(!this.moves.some((v) => v.toKey() == node.toKey())) {
+        this.moves.push(node);
+      }
     } else {
       console.error("Don't know how to collect this type of node: ", node);
       throw new Error("Unknown node type sent to collect");
@@ -462,23 +485,35 @@ export class FlowLevel {
 
   compile(nodes:Runtime.Node[], injections:Node[], toPass:Node[]):Runtime.Node[] {
     let items = this.toConstraints(injections);
+    let seen:any = {};
     let constraints:Runtime.Constraint[] = [];
     for(let toCompile of items) {
       let compiled = toCompile.compile();
       for(let item of compiled) {
-        constraints.push(item as Runtime.Constraint);
+        if(!(item instanceof Runtime.Scan)) {
+          constraints.push(item as Runtime.Constraint);
+        } else {
+          let key = item.toKey();
+          if(!seen[key]) {
+            seen[key] = true;
+            constraints.push(item as Runtime.Constraint);
+          }
+        }
       }
     }
 
     let join:Runtime.Node;
     if(!nodes.length && constraints.length) {
       join = new Runtime.JoinNode(constraints);
+      if(!this.records.length && !this.lookups.length && !this.moves.length) {
+        (join as Runtime.JoinNode).isStatic = true;
+      }
     } else if(constraints.length) {
       join = new Runtime.DownstreamJoinNode(constraints);
     } else if(nodes.length) {
       join = nodes.pop() as Runtime.Node;
     } else {
-      throw new Error("Query with zero constraints.")
+      join = new Runtime.NoopJoinNode([]);
     }
 
     // @NOTE: We need to unify all of our sub-blocks along with ourselves
@@ -518,7 +553,7 @@ export class FlowLevel {
     return nodes;
   }
 
-  split():FlowLevel[] {
+  split(context:ReferenceContext):FlowLevel[] {
     let maxLevel = 0;
     // if a register can be filled from the database, it doesn't need to be up-leveled,
     // since we always have a value for it from the beginning. Let's find all of those
@@ -530,6 +565,21 @@ export class FlowLevel {
       let registers = item.getRegisters();
       for(let register of registers) {
         supported[register.offset] = true;
+      }
+    }
+
+    // Every register that's an input to this level is supported by the outer context,
+    // so we don't need to level its output.
+    for(let register of context.getInputRegisters()) {
+      supported[register.offset] = true;
+    }
+
+    // Any move whose `from` is supported, has their `to` supported as well
+    for(let move of this.moves) {
+      let from = move.getInputRegisters()[0];
+      let to = move.getOutputRegisters()[0];
+      if(from && supported[from.offset]) {
+        supported[to.offset] = true;
       }
     }
 
@@ -572,7 +622,9 @@ export class FlowLevel {
 
         let changedProvider = false;
         let providerLevel = providerToLevel[item.ID] || 0;
-        for(let input of item.getInputRegisters()) {
+        let regs = item.getInputRegisters();
+
+        for(let input of regs) {
           let inputInfo = leveledRegisters[input.offset];
           if(inputInfo && inputInfo.level > providerLevel) {
             changedProvider = true;
@@ -830,7 +882,7 @@ export class LinearFlow extends DSLBase {
     }
 
     // Split our collector into levels
-    let levels = this.collector.split();
+    let levels = this.collector.split(this.context);
     let localItems = items.slice();
     for(let level of levels) {
       nodes = level.compile(nodes, items, localItems);
@@ -927,6 +979,8 @@ export class Record extends DSLBase {
     super();
     if(!record) {
       this.record = this.createReference();
+    } else {
+      context.register(record);
     }
     let attrs:Value[] = [];
     for(let tag of tags) {
@@ -937,7 +991,7 @@ export class Record extends DSLBase {
       let value = attributes[attr];
       if(isArray(value)) {
         for(let current of value) {
-          if(isReference(value)) context.register(value as Reference);
+          if(isReference(current)) context.register(current as Reference);
           attrs.push(attr, current);
         }
       } else {
@@ -1051,6 +1105,9 @@ export class Lookup extends DSLBase {
 
   constructor(public context:ReferenceContext, public record:Value) {
     super();
+    if(isReference(record)) {
+      context.register(record);
+    }
     let attribute = new Record(context);
     let value = new Record(context);
     this.attribute = attribute.reference();
@@ -1093,6 +1150,12 @@ export class Move extends DSLBase {
     }
   }
 
+  toKey() {
+    let from:any = isReference(this.from) ? `[${this.from.__ID}]` : this.from;
+    let to:any = isReference(this.to) ? `[${this.to.__ID}]` : this.to;
+    return `${from}|${to}`
+  }
+
   getInputRegisters():Register[] {
     let value = this.context.getValue(this.from);
     if(isRegister(value)) {
@@ -1128,8 +1191,9 @@ export class Insert extends Record {
       // we have to make our ID generation function
       let args = [];
       for(let ix = 0, len = this.attributes.length; ix < len; ix += 2) {
+        let a = this.attributes[ix];
         let v = this.attributes[ix + 1];
-        args.push(v);
+        args.push(a,v);
       }
 
       let genId = new Fn(context, "eve/internal/gen-id", args, this.reference());
@@ -1491,11 +1555,23 @@ export class Union extends DSLBase {
   inputs:Reference[] = [];
   branchInputs:Reference[][] = [];
 
-  constructor(public context:ReferenceContext, branchFunctions: Function[], parent:LinearFlow) {
+  constructor(public context:ReferenceContext, branchFunctions: Function[], parent:LinearFlow, existingResults?:Reference[]) {
     super();
     let {branches, results} = this;
-    let ix = 0;
     let resultCount:number|undefined;
+    if(existingResults) {
+      resultCount = existingResults.length;
+      this.results = existingResults.slice();
+      results = this.results;
+      for(let result of results) {
+        if(isReference(result)) {
+          result.__forceRegister = true;
+        } else {
+          throw new Error("Non-reference choose/union result");
+        }
+      }
+    }
+    let ix = 0;
     for(let branch of branchFunctions) {
       let flow = new LinearFlow(branch as LinearFlowFunction, parent);
       let branchResultCount = this.resultCount(flow.results);
@@ -1509,15 +1585,9 @@ export class Union extends DSLBase {
       } else if(resultCount !== branchResultCount) {
         throw new Error(`Choose branch ${ix} doesn't have the right number of returns. I expected ${resultCount}, but got ${branchResultCount}`);
       }
-      let branchInputs:Reference[] = this.branchInputs[ix] = [];
-      for(let ref of flow.context.getInputReferences()) {
-        if(this.inputs.indexOf(ref) === -1) {
-          this.inputs.push(ref);
-        }
-        branchInputs.push(ref);
-      }
+      this.setBranchInputs(ix, flow.context.getInputReferences());
       let resultIx = 0;
-      for(let result of this.results) {
+      for(let result of results) {
         flow.collect(new Move(flow.context, flow.results[resultIx], result));
         resultIx++;
       }
@@ -1525,6 +1595,16 @@ export class Union extends DSLBase {
       ix++;
     }
     context.flow.collect(this);
+  }
+
+  setBranchInputs(branchIx:number, inputs:Reference[]) {
+    let branchInputs:Reference[] = this.branchInputs[branchIx] = [];
+    for(let ref of inputs) {
+      if(this.inputs.indexOf(ref) === -1) {
+        this.inputs.push(ref);
+      }
+      branchInputs.push(ref);
+    }
   }
 
   getInputRegisters() {
@@ -1570,7 +1650,26 @@ export class Union extends DSLBase {
         // comment about the definition for AggregateOuterLookup.
         if(flow.collector.aggregates.length > 0) {
           let aggMerge = compiled[0] as Runtime.MergeAggregateFlow;
-          aggMerge.left = new Runtime.AggregateOuterLookup(join, aggMerge.left, flowInputs)
+          // we have to make sure that the outer lookup fields are actually used in the join node for
+          // the aggregate merge otherwise they will never join. For example if you have:
+          //
+          // board = [#board size: N, not(winner)]
+          // winner = if N = gather/count[for: cell, per: col]
+          //             cell = [#bar board col player]
+          //             then player
+          //
+          // N is both the input to the branch as well as the output of the aggregate, but it won't
+          // be available when doing the join *before* the aggregate. If it's included in the outer
+          // lookup we'll join the board size with undefined every time and always fail.
+          let outerLookupInputs = flowInputs.filter((v:Register) => {
+            let next = aggMerge.left;
+            if(next instanceof Runtime.JoinNode) {
+              return next.registerLookup[v.offset];
+            } else {
+              throw new Error("Don't know how to handle multi-node aggregates that don't start with a join");
+            }
+          });
+          aggMerge.left = new Runtime.AggregateOuterLookup(join, aggMerge.left, outerLookupInputs)
         }
         nodes.push(new Runtime.LinearFlow(compiled));
       } else {
@@ -1786,5 +1885,13 @@ export class Program {
     this.exporter.triggerOnObjects(this.lastWatch, handler);
 
     return this;
+  }
+
+  load(str:string) {
+    let results = Parser.parseDoc(str);
+    this.attach("ui");
+    this.attach("html");
+    this.attach("compiler");
+    this.inputEAVs(results.results.eavs);
   }
 }

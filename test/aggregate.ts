@@ -291,9 +291,9 @@ test("Aggregate: committed sort with post filtering", (assert) => {
     [4, "tag", "event/create-widget", 0, -1],
     [4, "model", 1, 0, -1],
 
-    [1, "widget", "widget|6", 0],
-    ["widget|6", "tag", "widget", 0],
-    ["widget|6", "serial", 6, 0],
+    [1, "widget", "tag|widget|serial|6", 0],
+    ["tag|widget|serial|6", "tag", "widget", 0],
+    ["tag|widget|serial|6", "serial", 6, 0],
   ]);
 
   assert.end();
@@ -333,9 +333,9 @@ test("Aggregate: committed sort in choose", (assert) => {
     [4, "tag", "event/create-widget", 0, -1],
     [4, "model", 1, 0, -1],
 
-    [1, "widget", "widget|6", 0],
-    ["widget|6", "tag", "widget", 0],
-    ["widget|6", "serial", 6, 0],
+    [1, "widget", "tag|widget|serial|6", 0],
+    ["tag|widget|serial|6", "tag", "widget", 0],
+    ["tag|widget|serial|6", "serial", 6, 0],
   ]);
 
   assert.end();
@@ -375,9 +375,9 @@ test("Aggregate: committed sort in choose with post filtering greater than", (as
     [4, "tag", "event/create-widget", 0, -1],
     [4, "model", 1, 0, -1],
 
-    [1, "widget", "widget|6", 0],
-    ["widget|6", "tag", "widget", 0],
-    ["widget|6", "serial", 6, 0],
+    [1, "widget", "tag|widget|serial|6", 0],
+    ["tag|widget|serial|6", "tag", "widget", 0],
+    ["tag|widget|serial|6", "serial", 6, 0],
   ]);
 
   assert.end();
@@ -426,9 +426,9 @@ test("Aggregate: committed sort with multiple groups", (assert) => {
     [4, "tag", "event/create-widget", 0, -1],
     [4, "model", 1, 0, -1],
 
-    [1, "widget", "widget|6", 0],
-    ["widget|6", "tag", "widget", 0],
-    ["widget|6", "serial", 6, 0],
+    [1, "widget", "tag|widget|serial|6", 0],
+    ["tag|widget|serial|6", "tag", "widget", 0],
+    ["tag|widget|serial|6", "serial", 6, 0],
   ]);
 
   assert.end();

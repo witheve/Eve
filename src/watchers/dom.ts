@@ -1,4 +1,4 @@
-import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, _isId, asJS} from "./watcher";
 import {v4 as uuid} from "uuid";
 
 import naturalSort = require("javascript-natural-sort");
@@ -18,8 +18,8 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   abstract tagPrefix:string;
   abstract createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance;
   abstract createRoot(id:RawValue):Instance;
-  abstract addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void;
-  abstract removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void;
+  abstract addAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
+  abstract removeAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
 
   protected _sendEvent(eavs:(RawEAV|RawEAVC)[]) {
     this.program.inputEAVs(eavs);
@@ -68,7 +68,6 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   }
 
   insertChild(parent:Element|null, child:Instance, at = child.__sort) {
-    at = at !== undefined ? ""+at: at;
     child.__sort = at
     if(at !== undefined) child.setAttribute("sort", ""+at);
     if(!parent) return;
@@ -159,13 +158,14 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         let click = find("{{tagPrefix}}/event/click");
         return [click.remove()];
       })
-      .bind("Elements with no parents are roots.", ({find, record, lib, not}) => {
-        let elem = find("{{tagPrefix}}/element");
-        not(() => find("{{tagPrefix}}/element", {children: elem}));
+
+      .bind("Create instances for each root.", ({find, record, lib, not}) => {
+        let elem = find("{{tagPrefix}}/root");
         return [
-          record("{{tagPrefix}}/root", "{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
+          record("{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
         ];
       })
+
       .bind("Create an instance for each child of a rooted parent.", ({find, record, lib, not}) => {
         let elem = find("{{tagPrefix}}/element");
         let parentElem = find("{{tagPrefix}}/element", {children: elem});
@@ -197,8 +197,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
       .watch("Export roots.", ({find, record}) => {
         let root = find("{{tagPrefix}}/root");
+        let instance = find("{{tagPrefix}}/instance", {element: root});
         return [
-          record({instance: root})
+          record({instance})
         ];
       })
       .asDiffs((diff) => {
@@ -270,6 +271,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         let instance = find("{{tagPrefix}}/instance");
         let elem = instance.element;
         let {attribute, value} = lookup(elem);
+        attribute != "class";
         return [
           instance.add(attribute, value)
         ];
@@ -282,11 +284,10 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           if(a === "tagname") continue;
           else if(a === "children") continue;
           else if(a === "sort") continue; // I guess..?
-
-          else if(a === "class") instance.classList.remove(""+v);
+          else if(a === "eve-auto-index") continue; // I guess..?
           else if(a === "text") instance.textContent = null;
           else if(a === "style") this.removeStyleInstance(v, e);
-          else this.removeAttribute(instance, a, v);
+          else this.removeAttribute(instance, a, asJS(v)!);
         }
 
         for(let [e, a, v] of diff.adds) {
@@ -295,13 +296,51 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
-
-          else if(a === "class") instance.classList.add(""+v);
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
+          else if(a === "eve-auto-index") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
           else if(a === "style") this.addStyleInstance(v, e);
-          else this.addAttribute(instance, a, v);
+          else this.addAttribute(instance, a, asJS(v)!);
         }
+      })
+
+      .watch("Export static classes.", ({find, not, lookup}) => {
+        let instance = find("{{tagPrefix}}/instance");
+        let elem = instance.element;
+        let klass = elem.class;
+        not(() => lookup(klass));
+
+        return [instance.add("class", klass)];
+      })
+      .asDiffs((diff) => {
+        for(let [e, a, v] of diff.removes) {
+          let instance = this.instances[e];
+          if(!instance) continue;
+
+          for(let klass of (""+v).split(" ")) {
+            if(!klass) continue;
+            instance.classList.remove(klass);
+          }
+        }
+
+        for(let [e, a, v] of diff.adds) {
+          let instance = this.instances[e];
+          if(!instance) throw new Error(`Orphaned instance '${e}'`);
+
+          for(let klass of (""+v).split(" ")) {
+            if(!klass) continue;
+            instance.classList.add(klass);
+          }
+        }
+      })
+
+      .bind("Elements with a dynamic class record apply classes for each true attribute.", ({find, lookup, record}) => {
+        let element = find("{{tagPrefix}}/element");
+        let {attribute, value} = lookup(element.class);
+        value == "true";
+        return [
+          element.add("class", attribute)
+        ];
       });
   }
 }

@@ -125,7 +125,44 @@ export class UIWatcher extends Watcher {
       .bind("Decorate link elements as html.", ({find, record}) => {
         let elem = find("ui/link");
         return [elem.add("tag", "html/element").add("tagname", "link")];
+      })
+      .bind("Decorate div elements as html.", ({find, record}) => {
+        let elem = find("ui/div");
+        return [elem.add("tag", "html/element").add("tagname", "div")];
+      })
+      .bind("Decorate span elements as html.", ({find, record}) => {
+        let elem = find("ui/span");
+        return [elem.add("tag", "html/element").add("tagname", "span")];
+      })
+      .bind("Decorate img elements as html.", ({find, record}) => {
+        let elem = find("ui/img");
+        return [elem.add("tag", "html/element").add("tagname", "img")];
+      })
+      .bind("Decorate h1 elements as html.", ({find, record}) => {
+        let elem = find("ui/h1");
+        return [elem.add("tag", "html/element").add("tagname", "h1")];
+      })
+      .bind("Decorate h2 elements as html.", ({find, record}) => {
+        let elem = find("ui/h2");
+        return [elem.add("tag", "html/element").add("tagname", "h2")];
+      })
+      .bind("Decorate h3 elements as html.", ({find, record}) => {
+        let elem = find("ui/h3");
+        return [elem.add("tag", "html/element").add("tagname", "h3")];
+      })
+      .bind("Decorate ul elements as html.", ({find, record}) => {
+        let elem = find("ui/ul");
+        return [elem.add("tag", "html/element").add("tagname", "ul")];
+      })
+      .bind("Decorate ol elements as html.", ({find, record}) => {
+        let elem = find("ui/ol");
+        return [elem.add("tag", "html/element").add("tagname", "ol")];
+      })
+      .bind("Decorate li elements as html.", ({find, record}) => {
+        let elem = find("ui/li");
+        return [elem.add("tag", "html/element").add("tagname", "li")];
       });
+
 
     // Buttons
     this.program
@@ -362,7 +399,7 @@ export class UIWatcher extends Watcher {
       .bind("Completions that match the current input value are matches.", ({find, lib:{string}}) => {
         let autocomplete = find("ui/autocomplete");
         let {value, completion} = autocomplete;
-        let ix = string.index_of(string.lowercase(completion.text), string.lowercase(value));
+        let ix = string["index-of"](string.lowercase(completion.text), string.lowercase(value));
         return [autocomplete.add("match", completion)];
       })
 

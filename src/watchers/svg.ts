@@ -34,6 +34,31 @@ class SVGWatcher extends DOMWatcher<Instance> {
   setup() {
     this.tagPrefix = "svg";
     super.setup();
+    this.program
+      .bind("Decorate a svg roots as html.", ({find}) => {
+        let elem = find("svg/root");
+        return [elem.add({tag: "svg/element", tagname: "svg"})];
+      })
+      .bind("Decorate line as svg.", ({find}) => {
+        let elem = find("svg/line");
+        return [elem.add({tag: "svg/element", tagname: "line"})];
+      })
+      .bind("Decorate circle as svg.", ({find}) => {
+        let elem = find("svg/circle");
+        return [elem.add({tag: "svg/element", tagname: "circle"})];
+      })
+      .bind("Decorate rect as svg.", ({find}) => {
+        let elem = find("svg/rect");
+        return [elem.add({tag: "svg/element", tagname: "rect"})];
+      })
+      .bind("Decorate text as svg.", ({find}) => {
+        let elem = find("svg/text");
+        return [elem.add({tag: "svg/element", tagname: "text"})];
+      })
+      .bind("Decorate image as svg.", ({find}) => {
+        let elem = find("svg/image");
+        return [elem.add({tag: "svg/element", tagname: "image"})];
+      });
   }
 }
 
