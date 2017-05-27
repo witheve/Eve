@@ -5,7 +5,7 @@
 import * as commonmark from "commonmark";
 import * as chev from "chevrotain";
 import {parserErrors, EveError} from "./errors";
-var {Lexer} = chev;
+var {Lexer, tokenMatcher} = chev;
 export var Token = chev.Token;
 import * as uuid from "uuid";
 
@@ -25,7 +25,7 @@ function cleanString(str:string) {
 }
 
 function toEnd(node:any) {
-  if(node instanceof Token) {
+  if(node && node.tokenType !== undefined) {
     return node.endOffset! + 1;
   }
   return node.endOffset;
@@ -1033,7 +1033,7 @@ export class Parser extends chev.Parser {
             expression = makeNode("expression", {variable, op: `compare/${comparator.image}`, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
             self.block.addUsage(variable, expression);
             self.block.expression(expression);
-          } else if(comparator instanceof Equality) {
+          } else if(tokenMatcher(comparator, Equality)) {
             if(value.type === "choose" || value.type === "union") {
               value.outputs = ifOutputs(left);
               self.block.scan(value);
