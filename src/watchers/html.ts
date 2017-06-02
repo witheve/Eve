@@ -109,19 +109,26 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
         [eventId, "target", target.__element!]
       ];
-      let buttons = event.buttons;
-      if(buttons & 1) eavs.push([eventId, "button", "left"]);
-      if(buttons & 2) eavs.push([eventId, "button", "right"]);
-      if(buttons & 4) eavs.push([eventId, "button", "middle"]);
-      if(buttons & 8) eavs.push([eventId, "button", 4]);
-      if(buttons & 16) eavs.push([eventId, "button", 5]);
+      let button = event.button;
+
+      if(button === 0) eavs.push([eventId, "button", "left"]);
+      else if(button === 2) eavs.push([eventId, "button", "right"]);
+      else if(button === 1) eavs.push([eventId, "button", "middle"]);
+      else if(button) eavs.push([eventId, "button", button]);
 
       let current:Element|null = target;
       let elemIds = [];
+      let capturesContextMenu = false;
       while(current && this.isInstance(current)) {
         eavs.push([eventId, "element", current.__element!]);
+        if(button === 2 && current.listeners && current.listeners["context-menu"] === true) {
+          capturesContextMenu = true;
+        }
         current = current.parentElement;
       }
+      // @NOTE: You'll get a mousedown but no mouseup for a right click if you don't capture the context menu,
+      //   so we throw out the mousedown entirely in that case. :(
+      if(button === 2 && !capturesContextMenu) return;
       if(eavs.length) this._sendEvent(eavs);
     };
   }
