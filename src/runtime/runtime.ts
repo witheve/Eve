@@ -3312,23 +3312,8 @@ export class Transaction {
   }
 
   export(context:EvaluationContext, blockId:number, change:Change) {
-    let {e, a, v, count} = change;
-    let beav = `${blockId}|${e}|${a}|${v}`;
-    let old = context.exportIndex[beav] || 0;
-    let neue = old + count;
-    let delta = 0;
-
-    // Once you go negative you don't go back.
-    if(old === 0 && neue > 0) delta = 1;
-    else if(old > 0 && neue === 0) delta = -1;
-
-    context.exportIndex[beav] = neue;
-
-    if(delta) {
-      let exportedChange = new Change(e, a, v, change.n, this.transaction, 0, delta);
-      if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [exportedChange];
-      else this.exportedChanges[blockId].push(exportedChange);
-    }
+    if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [change];
+    else this.exportedChanges[blockId].push(change);
   }
 
   protected prepareRound(context:EvaluationContext, changeIx:number) {
@@ -3509,8 +3494,27 @@ export class Transaction {
       if(!this.exportHandler) throw new Error("Unable to export changes without export handler.");
 
       for(let blockId of exportingBlocks) {
-        let exports = createArray("exportsArray");
-        this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
+        let rawExports:Change[] = createArray("rawExportsArray");
+        this.collapseMultiplicity(this.exportedChanges[+blockId], rawExports);
+        let exports:Change[] = createArray("exportsArray");
+        for(let change of rawExports) {
+          let {e, a, v, count} = change;
+          let beav = `${blockId}|${e}|${a}|${v}`;
+          let old = context.exportIndex[beav] || 0;
+          let neue = old + count;
+          let delta = 0;
+          context.exportIndex[beav] = neue;
+
+          // Once you go negative you don't go back.
+          if(old === 0 && neue > 0) delta = 1;
+          else if(old > 0 && neue === 0) delta = -1;
+
+          if(delta) {
+            let exportedChange = new Change(e, a, v, change.n, this.transaction, 0, delta);
+            exports.push(exportedChange);
+          }
+        }
+
         this.exportedChanges[+blockId] = exports;
       }
       try {

@@ -25,7 +25,7 @@ export class Watcher {
   }
 
   static get(id:string) {
-    let watcher = this._registry[id];;
+    let watcher = this._registry[id];
     if(watcher) return watcher;
   }
 
