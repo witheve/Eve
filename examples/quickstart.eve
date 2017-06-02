@@ -256,20 +256,20 @@ We also invite you to join the Eve community! There are several ways to get invo
 - Follow us on [twitter](https://twitter.com/with_eve).
 
 
-[records]: https://witheve.github.io/docs/handbook/records/
-[blocks]: https://witheve.github.io/docs/handbook/blocks/
-[search]: https://witheve.github.io/docs/handbook/search/
-[bind]: https://witheve.github.io/docs/handbook/bind/
-[commit]: https://witheve.github.io/docs/handbook/commit/
-[string-interpolation]: https://witheve.github.io/docs/handbook/string-interpolation/
-[joins]: https://witheve.github.io/docs/handbook/joins/
-[quickstart-source]: https://github.com/witheve/Eve/blob/master/examples/quickstart.eve
-[tags]: https://witheve.github.io/docs/handbook/tags/
-[merge]: https://witheve.github.io/docs/handbook/merge/
-[sets]: https://witheve.github.io/docs/handbook/sets/
-[equivalence]: https://witheve.github.io/docs/handbook/equivalence/
-[if-then]: https://witheve.github.io/docs/handbook/if-then/
-[set]: https://witheve.github.io/docs/handbook/set/
-[aggregates]: https://witheve.github.io/docs/handbook/aggregates/
-[functions]: https://witheve.github.io/docs/handbook/functions/
-[count]: https://witheve.github.io/docs/handbook/statistics/count/
+[records]: http://docs.witheve.com/v0.2/handbook/records/
+[blocks]: http://docs.witheve.com/v0.2/handbook/blocks/
+[search]: http://docs.witheve.com/v0.2/handbook/search/
+[bind]: http://docs.witheve.com/v0.2/handbook/bind/
+[commit]: http://docs.witheve.com/v0.2/handbook/commit/
+[string-interpolation]: http://docs.witheve.com/v0.2/handbook/string-interpolation/
+[joins]: http://docs.witheve.com/v0.2/handbook/joins/
+[quickstart-source]: https://github.com/witheve/Eve/blob/v0.2.5/examples/quickstart.eve
+[tags]: http://docs.witheve.com/v0.2/handbook/tags/
+[merge]: http://docs.witheve.com/v0.2/handbook/merge/
+[sets]: http://docs.witheve.com/v0.2/handbook/sets/
+[equivalence]: http://docs.witheve.com/v0.2/handbook/equivalence/
+[if-then]: http://docs.witheve.com/v0.2/handbook/if-then/
+[set]: http://docs.witheve.com/v0.2/handbook/set/
+[aggregates]: http://docs.witheve.com/v0.2/handbook/aggregates/
+[functions]: http://docs.witheve.com/v0.2/handbook/functions/
+[count]: http://docs.witheve.com/v0.2/handbook/statistics/count/
