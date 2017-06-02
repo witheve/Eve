@@ -159,14 +159,14 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         return [click.remove()];
       })
 
-      .bind("Create instances for each root.", ({find, record, lib, not}) => {
+      .bind("Create instances for each root.", ({find, record, lib}) => {
         let elem = find("{{tagPrefix}}/root");
         return [
           record("{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
         ];
       })
 
-      .bind("Create an instance for each child of a rooted parent.", ({find, record, lib, not}) => {
+      .bind("Create an instance for each child of a rooted parent.", ({find, record, lib}) => {
         let elem = find("{{tagPrefix}}/element");
         let parentElem = find("{{tagPrefix}}/element", {children: elem});
         let parent = find("{{tagPrefix}}/instance", {element: parentElem});
@@ -239,7 +239,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         }
       })
 
-      .watch("Export element styles.", ({find, record, lib, not, lookup}) => {
+      .watch("Export element styles.", ({find, record, lib, lookup}) => {
         let elem = find("{{tagPrefix}}/element");
         let style = elem.style;
         let {attribute, value} = lookup(style);
