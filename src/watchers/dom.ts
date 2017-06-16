@@ -17,7 +17,8 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
   abstract tagPrefix:string;
   abstract createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance;
-  abstract createRoot(id:RawValue):Instance;
+  abstract getInstance(id:RawValue):Instance|undefined;
+  abstract createRoot(id:RawValue):Instance|undefined;
   abstract addAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
   abstract removeAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
 
@@ -40,11 +41,6 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     if(!this.elementToInstances[element]) this.elementToInstances[element] = [];
     this.elementToInstances[element]!.push(id);
     return instance;
-  }
-
-  getInstance(id:RawValue, tagname:RawValue = "div"):Instance|undefined {
-    if(this.roots[id]) return this.roots[id]!;
-    return this.instances[id];
   }
 
   clearInstance(id:RawValue) {
@@ -134,7 +130,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   }
 
   removeStyleInstance(styleId:RawValue, instanceId:RawValue) {
-    let instance = this.instances[instanceId];
+    let instance = this.getInstance(instanceId);
     if(!instance) return;
     instance.removeAttribute("style");
     let ix = instance.__styles!.indexOf(styleId);
@@ -278,7 +274,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       })
       .asDiffs((diff) => {
         for(let [e, a, v] of diff.removes) {
-          let instance = this.instances[e];
+          let instance = this.getInstance(e);
           if(!instance) continue;
 
           if(a === "tagname") continue;
@@ -291,7 +287,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         }
 
         for(let [e, a, v] of diff.adds) {
-          let instance = this.instances[e];
+          let instance = this.getInstance(e);
           if(!instance) throw new Error(`Orphaned instance '${e}'`);
 
           else if((a === "tagname")) continue;
@@ -314,7 +310,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       })
       .asDiffs((diff) => {
         for(let [e, a, v] of diff.removes) {
-          let instance = this.instances[e];
+          let instance = this.getInstance(e);
           if(!instance) continue;
 
           for(let klass of (""+v).split(" ")) {
@@ -324,7 +320,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         }
 
         for(let [e, a, v] of diff.adds) {
-          let instance = this.instances[e];
+          let instance = this.getInstance(e);
           if(!instance) throw new Error(`Orphaned instance '${e}'`);
 
           for(let klass of (""+v).split(" ")) {
