@@ -270,11 +270,11 @@ export var messages = {
   unimplementedExpression: (op:string) => `There's no definition for the function ${op}`,
 
   blankScan: () => 'Lookup requires at least one attribute: record, attribute, value, or node',
-  invalidLookupAction: (missing:string[]) => `Updating a lookup requires that record, attribute, and value all be provided. Looks like ${missing.join("and")} is missing.`,
+  invalidLookupAction: (missing:string[]) => `Updating a lookup requires that record, attribute, and value all be provided. Looks like ${missing.join("and")} ${missing.length > 1 ? "are" : "is"} missing.`,
 
   neverEqual: (left:string, right:string) => `${left} can never equal ${right}`,
   variableNeverEqual: (variable:any, value:string, right:string) => `${variable.name} is equivalent to ${value}, which can't be equal to ${right}`,
 
-  actionNonTag: (found:string) => `Looks like this should be a tag, try changing the ${found} to a #`,
-  actionRawIdentifier: (found:string) => `I can only add/remove tags directly on a record. If you meant to add ${found} as an attribute to the record, try 'my-record.found += ${found}'; if you meant to add the #${found} tag, add #.`
+  actionNonTag: (found:string) => `Looks like this should be a tag, try changing the ${found} to #${found}`,
+  actionRawIdentifier: (found:string) => `I can only add/remove tags directly on a record. If you meant to add ${found} as an attribute to the record, try 'my-record.${found} += ${found}'; if you meant to add the #${found} tag, add #.`
 };
