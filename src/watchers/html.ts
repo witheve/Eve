@@ -19,12 +19,19 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
   }
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
-    let elem:Instance = document.createElement(tagname as string);
+    let elem:Instance
+    if(tagname === "svg") elem = document.createElementNS("http://www.w3.org/2000/svg", tagname as string) as any;
+    else elem = document.createElement(tagname as string);
+
     elem.setAttribute("instance", ""+maybeIntern(id));
     elem.setAttribute("element", ""+maybeIntern(element));
     elem.__element = element;
     elem.__styles = [];
     return elem;
+  }
+
+  getInstance(id:RawValue):Instance|undefined {
+    return this.instances[id];
   }
 
   createRoot(id:RawValue):Instance {

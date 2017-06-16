@@ -1,11 +1,13 @@
 import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
+import {HTMLWatcher} from "./html";
 
 interface Instance extends SVGElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
 
 
 class SVGWatcher extends DOMWatcher<Instance> {
   tagPrefix = "svg";
+  html:HTMLWatcher;
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElementNS("http://www.w3.org/2000/svg", tagname as string);
@@ -14,11 +16,13 @@ class SVGWatcher extends DOMWatcher<Instance> {
     return elem;
   }
 
-  createRoot(id:RawValue):Instance {
-    let elem = this.instances[id];
-    if(!elem) throw new Error(`Orphaned instance '${id}'`);
-    document.body.appendChild(elem);
-    return elem;
+  getInstance(id:RawValue):Instance|undefined {
+    if(this.instances[id]) return this.instances[id];
+    if(this.html.instances[id]) return this.html.instances[id] as any;
+  }
+
+  createRoot(id:RawValue) {
+    // This is delegated to the HTML watcher for #svg/roots, and it's nonsensical to try to make any other svg element a root.
   }
 
   addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
@@ -32,12 +36,23 @@ class SVGWatcher extends DOMWatcher<Instance> {
   }
 
   setup() {
+    this.html = this.program.attach("html") as HTMLWatcher;
     this.tagPrefix = "svg";
     super.setup();
     this.program
+      .bind("Create an instance for each child of an svg/root.", ({find, record, lib}) => {
+        let elem = find("svg/element");
+        let parentElem = find("svg/root", {children: elem});
+        let parent = find("html/instance", {element: parentElem});
+
+        return [
+          record("svg/instance", {element: elem, tagname: elem.tagname, parent})
+        ];
+      })
+
       .bind("Decorate a svg roots as html.", ({find}) => {
         let elem = find("svg/root");
-        return [elem.add({tag: "svg/element", tagname: "svg"})];
+        return [elem.add({tag: "html/element", tagname: "svg"})];
       })
       .bind("Decorate line as svg.", ({find}) => {
         let elem = find("svg/line");
