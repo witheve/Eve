@@ -3455,14 +3455,15 @@ export class Transaction {
     let total = 0;
     let frames = 0;
     let changeIx = 0;
+    var iterationLimit = 10000;
     this.prepareRound(context, changeIx);
-    while(changeIx < changes.length) {
-      let change = changes[changeIx];
+    while (changeIx < changes.length) {
+      var change = changes[changeIx];
       tracer.input(change);
       total++;
-      if(total > 10000) {
-        console.error("bad");
-        break;
+      if (total > iterationLimit) {
+          console.error(`Failed to fixpoint after ${iterationLimit} iterations`);
+          break;
       }
       if(this.round !== 0 && change.round === 0) {
         frames++;
