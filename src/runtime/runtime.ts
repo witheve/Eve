@@ -3462,8 +3462,8 @@ export class Transaction {
       tracer.input(change);
       total++;
       if(total > iterationLimit) {
-          console.error(`Error: Program failed to fixpoint after ${iterationLimit} iterations. This is likely due to an unbounded cycle in the program.`);
-          break;
+        console.error(`Error: Program failed to fixpoint after ${iterationLimit} iterations. This is likely due to an unbounded cycle in the program.`);
+        break;
       }
       if(this.round !== 0 && change.round === 0) {
         frames++;
