@@ -1491,9 +1491,7 @@ export function errorToFacts(eavs:any[], error:EveError, block:any) {
   let sampleText = [];
   let relativeStart = startLine - blockStartLine;
   let relativeStop = stopLine - blockStartLine;
-  if(relativeStart === 0) {
-    sampleText.push(blockLines[0]);
-  } else {
+  if(relativeStart != 0) {
     sampleText.push(blockLines[relativeStart - 1]);
     sampleText.push(blockLines[relativeStart]);
   }
