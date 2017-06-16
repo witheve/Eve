@@ -23,6 +23,7 @@ class SVGWatcher extends DOMWatcher<Instance> {
 
   createRoot(id:RawValue) {
     // This is delegated to the HTML watcher for #svg/roots, and it's nonsensical to try to make any other svg element a root.
+    return undefined;
   }
 
   addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
