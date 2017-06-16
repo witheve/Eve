@@ -3457,11 +3457,11 @@ export class Transaction {
     let changeIx = 0;
     let iterationLimit = 10000;
     this.prepareRound(context, changeIx);
-    while (changeIx < changes.length) {
+    while(changeIx < changes.length) {
       let change = changes[changeIx];
       tracer.input(change);
       total++;
-      if (total > iterationLimit) {
+      if(total > iterationLimit) {
           console.error(`Error: Program failed to fixpoint after ${iterationLimit} iterations. This is likely due to an unbounded cycle in the program.`);
           break;
       }
