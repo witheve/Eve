@@ -794,6 +794,27 @@ export class Parser extends chev.Parser {
         {ALT: () => { return self.SUBRULE(self.attributeComparison); }},
         {ALT: () => { return self.SUBRULE(self.attributeNot, [recordVariable]); }},
         {ALT: () => { return self.SUBRULE(self.singularAttribute); }},
+        {ALT: () => {
+          let value: any = self.SUBRULE(self.value);
+          let token = value.from[0];
+
+          let message = "Value missing attribute";
+
+          if (value.hasOwnProperty("value")) {
+            message = `"${value.value}" needs to be labeled with an attribute`;
+          }
+
+          self.customErrors.push({
+            message,
+            name: "Unlabeled value",
+            resyncedTokens: [],
+            context: {
+              ruleOccurrenceStack: [],
+              ruleStack: []
+            },
+            token
+          });
+        }},
       ]);
     });
 
