@@ -3455,10 +3455,10 @@ export class Transaction {
     let total = 0;
     let frames = 0;
     let changeIx = 0;
-    var iterationLimit = 10000;
+    let iterationLimit = 10000;
     this.prepareRound(context, changeIx);
     while (changeIx < changes.length) {
-      var change = changes[changeIx];
+      let change = changes[changeIx];
       tracer.input(change);
       total++;
       if (total > iterationLimit) {
