@@ -286,8 +286,10 @@ export class CompilerWatcher extends Watcher {
         this.programToInjectInto.asDiffs(func);
       }
     }
-    console.log("Compiled: ", printBlock(block));
-    console.log("Compiled: ", block, flow);
+    console.groupCollapsed("Compiled: " + block.name);
+    console.log(block, flow);
+    console.log(printBlock(block));
+    console.groupEnd();
     return block;
   }
 
