@@ -1569,6 +1569,7 @@ export function recordToFacts(eavs:any[], vars:any, scanLike:any) {
 }
 
 function asFactValue(vars:any, value:any) {
+  if(typeof value !== "object") return value;
   return value.type == "constant" ? value.value : vars[value.name];
 }
 
@@ -1601,7 +1602,7 @@ export function outputToFacts(eavs:any[], vars:any, scanLike:any, blockId:string
       }
       for(let value of values) {
         let attrId = uuid();
-        eavs.push([attrId, "attribute", attr.attribute]);
+        eavs.push([attrId, "attribute", asFactValue(vars, attr.attribute)]);
         if(value) {
           eavs.push([attrId, "value", asFactValue(vars, value)]);
         }

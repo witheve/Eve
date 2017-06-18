@@ -156,7 +156,7 @@ export class CompilerWatcher extends Watcher {
           }
           let record = output.reference() as any;
           for(let [attribute, value] of constraint.nonIdentityAttribute) {
-            record[outputOp](attribute, compileValue(compile, context, value));
+            record[outputOp](compileValue(compile, context, attribute), compileValue(compile, context, value));
           }
         })
       }
@@ -286,8 +286,10 @@ export class CompilerWatcher extends Watcher {
         this.programToInjectInto.asDiffs(func);
       }
     }
-    console.log("Compiled: ", printBlock(block));
-    console.log("Compiled: ", block, flow);
+    console.groupCollapsed("Compiled: " + block.name);
+    console.log(block, flow);
+    console.log(printBlock(block));
+    console.groupEnd();
     return block;
   }
 
