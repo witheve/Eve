@@ -156,7 +156,7 @@ export class CompilerWatcher extends Watcher {
           }
           let record = output.reference() as any;
           for(let [attribute, value] of constraint.nonIdentityAttribute) {
-            record[outputOp](attribute, compileValue(compile, context, value));
+            record[outputOp](compileValue(compile, context, attribute), compileValue(compile, context, value));
           }
         })
       }
