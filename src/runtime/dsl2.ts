@@ -1892,6 +1892,8 @@ export class Program {
     this.attach("ui");
     this.attach("html");
     this.attach("compiler");
-    this.inputEAVs(results.results.eavs);
+    if(results.results.eavs.length) {
+      this.inputEAVs(results.results.eavs);
+    }
   }
 }
