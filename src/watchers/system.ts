@@ -12,8 +12,8 @@ class SystemWatcher extends Watcher {
     }
     changes.push(
       [timer, "year", date.getFullYear(), multiplicity],
-      [timer, "month", date.getMonth(), multiplicity],
-      [timer, "day", date.getDay(), multiplicity],
+      [timer, "month", date.getMonth() + 1, multiplicity],
+      [timer, "day", date.getDate() + 1, multiplicity],
       [timer, "hours", date.getHours(), multiplicity],
       [timer, "minutes", date.getMinutes(), multiplicity],
       [timer, "seconds", date.getSeconds(), multiplicity],
