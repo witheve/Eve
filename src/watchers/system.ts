@@ -14,6 +14,7 @@ class SystemWatcher extends Watcher {
       [timer, "year", date.getFullYear(), multiplicity],
       [timer, "month", date.getMonth() + 1, multiplicity],
       [timer, "day", date.getDate(), multiplicity],
+      [timer, "weekday", date.getDay() + 1, multiplicity],
       [timer, "hours", date.getHours(), multiplicity],
       [timer, "minutes", date.getMinutes(), multiplicity],
       [timer, "seconds", date.getSeconds(), multiplicity],
