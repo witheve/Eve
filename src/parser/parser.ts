@@ -1491,6 +1491,8 @@ export function errorToFacts(eavs:any[], error:EveError, block:any) {
   let pos = 0;
   let start = error.start - offset;
   let stop = error.stop - offset;
+  if(isNaN(stop)) stop = text.length + offset;
+  if(isNaN(start)) start = offset;
   let curLine = 0;
   let startLine = 0;
   let startChar = 0;
@@ -1500,19 +1502,17 @@ export function errorToFacts(eavs:any[], error:EveError, block:any) {
     pos += blockLines[curLine++].length + 1;
   }
   startLine = blockStartLine + curLine;
-  startChar = start - (pos - blockLines[curLine - 1].length) + 2;
+  startChar = start - (pos - (blockLines[curLine - 1] || "").length) + 2;
   while(curLine < blockLines.length && pos < stop) {
-    pos += blockLines[curLine++].length + 1;
+    pos += (blockLines[curLine++] || "").length + 1;
   }
   stopLine = blockStartLine + curLine;
-  stopChar = stop - (pos - blockLines[curLine - 1].length) + 2;
+  stopChar = stop - (pos - (blockLines[curLine - 1] || "").length) + 2;
 
   let sampleText = [];
   let relativeStart = startLine - blockStartLine;
   let relativeStop = stopLine - blockStartLine;
-  if(relativeStart === 0) {
-    sampleText.push(blockLines[0]);
-  } else {
+  if(relativeStart != 0) {
     sampleText.push(blockLines[relativeStart - 1]);
     sampleText.push(blockLines[relativeStart]);
   }
