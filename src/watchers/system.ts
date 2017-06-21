@@ -18,6 +18,7 @@ class SystemWatcher extends Watcher {
       [timer, "hours", date.getHours(), multiplicity],
       [timer, "minutes", date.getMinutes(), multiplicity],
       [timer, "seconds", date.getSeconds(), multiplicity],
+      [timer, "milliseconds", date.getMilliseconds(), multiplicity],
       [timer, "timestamp", date.getTime(), multiplicity],
       [timer, "frame", frame, multiplicity],
     );
