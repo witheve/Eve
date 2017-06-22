@@ -300,6 +300,9 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     window.addEventListener("dblclick", this._mouseEventHandler("double-click"));
     window.addEventListener("mousedown", this._mouseEventHandler("mouse-down"));
     window.addEventListener("mouseup", this._mouseEventHandler("mouse-up"));
+
+    window.addEventListener("mousemove", this._mouseEventHandler("mouse-move"));
+
     window.addEventListener("contextmenu", this._captureContextMenuHandler());
 
     window.addEventListener("input", this._inputEventHandler("change"));
