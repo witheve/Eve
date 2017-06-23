@@ -1,7 +1,7 @@
 import {Watcher} from "./watcher";
 import {ID} from "../runtime/runtime";
 
-class SystemWatcher extends Watcher {
+export class SystemWatcher extends Watcher {
   timers:{[key:string]: {timer:any, prev:Date|undefined, frame:number}} = {};
 
   getTime(changes:any[], timer:ID, frame:number, date?:Date) {
