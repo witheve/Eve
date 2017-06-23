@@ -189,11 +189,33 @@ makeFunction({
 });
 
 makeFunction({
+  name: "math/pow",
+  args: {value: "number", exponent: "number"},
+  returns: {result: "number"},
+  apply: (value:number, exponent:number) => {
+    return [Math.pow(value, exponent)];
+  }
+});
+
+makeFunction({
   name: "math/to-fixed",
   args: {value: "number", to: "number"},
   returns: {result: "string"},
   apply: (value:number, to:number) => {
-    return [value.toFixed(to)];
+    if(typeof value === "number") {
+      return [value.toFixed(to)];
+    }
+  }
+});
+
+makeFunction({
+  name: "math/convert-base",
+  args: {value: "number", to: "number"},
+  returns: {result: "string"},
+  apply: (value:number, to:number) => {
+    if(typeof value === "number" && to > 1 && to < 37) {
+      return [value.toString(to)];
+    }
   }
 });
 
