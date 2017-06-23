@@ -1453,7 +1453,7 @@ export class Aggregate extends DSLBase {
 
   getJoinRegisters():Register[] {
     let {context} = this;
-    let items = concatArray([], this.args);
+    let items = [] as any[]; //concatArray([], this.args);
     if(this.aggregate === Runtime.SortNode) {
       concatArray(items, this.projection);
     }
