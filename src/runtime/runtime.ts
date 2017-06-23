@@ -2359,7 +2359,6 @@ export class BinaryJoinRight extends BinaryFlow {
   toString() {
     let keys = "[" + this.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
     let merge = "[" + this.registersToMerge.map((r) => `[${r.offset}]`).join(", ") + "]";
-
     return `${this._nodeName}({
   keys: ${keys},
   merge: ${merge},
@@ -2795,6 +2794,16 @@ export class AggregateOuterLookup extends BinaryFlow {
   constructor(public left:Node, public right:Node, public keyRegisters:Register[]) {
     super(left, right);
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
+  }
+
+  toString() {
+    let keys = "[" + this.keyRegisters.map((r) => `[${r.offset}]`).join(", ") + "]";
+    //${indent(this.left.toString(), 2)},
+    return `AggregateOuterLookup({
+  keys: ${keys},
+  left: '*snip*',
+  right: ${indent(this.right.toString(), 2)}
+})`;
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
