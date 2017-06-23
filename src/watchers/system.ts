@@ -2,9 +2,9 @@ import {Watcher} from "./watcher";
 import {ID} from "../runtime/runtime";
 
 class SystemWatcher extends Watcher {
-  timers:{[key:string]: {timer:any, prev:Date|undefined, frame:number}} = {};
+  timers:{[key:string]: {timer:any, prev:Date|undefined, tick:number}} = {};
 
-  getTime(changes:any[], timer:ID, frame:number, date?:Date) {
+  getTime(changes:any[], timer:ID, tick:number, date?:Date) {
     let multiplicity = -1;
     if(!date) {
       multiplicity = 1;
@@ -15,12 +15,12 @@ class SystemWatcher extends Watcher {
       [timer, "month", date.getMonth() + 1, multiplicity],
       [timer, "day", date.getDate(), multiplicity],
       [timer, "weekday", date.getDay() + 1, multiplicity],
-      [timer, "hours", date.getHours(), multiplicity],
-      [timer, "minutes", date.getMinutes(), multiplicity],
-      [timer, "seconds", date.getSeconds(), multiplicity],
-      [timer, "milliseconds", date.getMilliseconds(), multiplicity],
+      [timer, "hour", date.getHours(), multiplicity],
+      [timer, "minute", date.getMinutes(), multiplicity],
+      [timer, "second", date.getSeconds(), multiplicity],
+      [timer, "millisecond", date.getMilliseconds(), multiplicity],
       [timer, "timestamp", date.getTime(), multiplicity],
-      [timer, "frame", frame, multiplicity],
+      [timer, "tick", tick, multiplicity],
     );
     return date;
   }
@@ -40,16 +40,16 @@ class SystemWatcher extends Watcher {
         let {timer, resolution} = adds[id];
         let prev:Date;
         let timerHandle = setInterval(() => {
-          let {prev, frame} = this.timers[id];
+          let {prev, tick} = this.timers[id];
           let changes:any[] = [];
           if(prev) {
-            this.getTime(changes, timer, frame, prev)
+            this.getTime(changes, timer, tick, prev)
           }
-          this.timers[id].frame = ++frame;
-          this.timers[id].prev = this.getTime(changes, timer, frame);
+          this.timers[id].tick = ++tick;
+          this.timers[id].prev = this.getTime(changes, timer, tick);
           me.inputEAVs(changes);
         }, resolution);
-        this.timers[id] = {timer:timerHandle, prev:undefined, frame:0};
+        this.timers[id] = {timer:timerHandle, prev:undefined, tick:0};
       })
       console.log("GOT TIMER!", adds);
     })
