@@ -29,11 +29,7 @@ bind
                     let {file, path, encoding} = adds[id];
                     fs.readFile(path, {encoding: encoding}, function(err, contents){
                         if (!err) {
-                            let changes:RawEAV[] = [];
-                            changes.push(
-                                [file, "contents", contents],
-                            );
-                            me.inputEAVs(changes);
+                            me.inputEAVs([[file, "contents", contents]]);
                         } else {
                             let id = `${file}|error`
                             let changes:RawEAV[] = [];
