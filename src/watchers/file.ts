@@ -6,15 +6,6 @@ class FileWatcher extends Watcher {
 
     setup() {
         let {program:me} = this;
-        
-        /*
-        fs.readFile("..\\foo.txt", {encoding: 'utf-8'}, function(err,data){
-            if (!err) {
-                console.log('received data: ' + data);
-            } else {
-                console.log(err);
-            }
-        });*/
 
         me.watch("read a file", ({find, record}) => {
             let readfile = find("file/read");
@@ -39,22 +30,6 @@ class FileWatcher extends Watcher {
                 });
             })
         })
-
-        // Console log watcher
-        me.watch("print to console log", ({find, record}) => {
-            let log = find("console/log");
-            return [
-                record({log, text: log.text})
-            ]
-        })
-
-        me.asObjects<{log:ID, text:string}>(({adds, removes}) => {
-            Object.keys(adds).forEach((id) => {
-                let {log, text} = adds[id];
-                console.log(text);
-            })
-        })
-
 
     }
 }
