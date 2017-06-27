@@ -8,7 +8,7 @@ class FileWatcher extends Watcher {
         let {program:me} = this;
 
         me.watch("print to console log", ({find, record}) => {
-            let log = find("stdio/log");
+            let log = find("console/log");
             return [
                 record({log, text: log.text})
             ]
@@ -21,7 +21,7 @@ class FileWatcher extends Watcher {
         })
 
         me.watch("print to console error", ({find, record}) => {
-            let log = find("stdio/error");
+            let log = find("console/error");
             return [
                 record({log, text: log.text})
             ]
@@ -34,7 +34,7 @@ class FileWatcher extends Watcher {
         })
 
         me.watch("print to console warn", ({find, record}) => {
-            let log = find("stdio/warn");
+            let log = find("console/warn");
             return [
                 record({log, text: log.text})
             ]
@@ -50,4 +50,4 @@ class FileWatcher extends Watcher {
     }
 }
 
-Watcher.register("stdio", FileWatcher);
+Watcher.register("console", FileWatcher);
