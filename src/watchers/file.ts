@@ -27,7 +27,7 @@ bind
             me.asObjects<{file:ID, path:string, encoding:string}>(({adds, removes}) => {
                 Object.keys(adds).forEach((id) => {
                     let {file, path, encoding} = adds[id];
-                    fs.readFile(path, {encoding: encoding}, function(err, contents){
+                    fs.readFile(path, {encoding}, function(err, contents){
                         if (!err) {
                             me.inputEAVs([[file, "contents", contents]]);
                         } else {
