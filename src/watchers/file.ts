@@ -1,5 +1,5 @@
 import * as fs from "fs";
-import {Watcher, RawEAVC} from "./watcher";
+import {Watcher, RawEAV} from "./watcher";
 import {ID} from "../runtime/runtime";
 
 class FileWatcher extends Watcher {
@@ -29,19 +29,19 @@ bind
                     let {file, path, encoding} = adds[id];
                     fs.readFile(path, {encoding: encoding}, function(err, contents){
                         if (!err) {
-                            let changes:RawEAVC[] = [];
+                            let changes:RawEAV[] = [];
                             changes.push(
-                                [file, "contents", contents, 1],
+                                [file, "contents", contents],
                             );
                             me.inputEAVs(changes);
                         } else {
                             let id = `${file}|error`
-                            let changes:RawEAVC[] = [];
+                            let changes:RawEAV[] = [];
                             changes.push(
-                                [id, "tag", "file/error", 1],
-                                [id, "file", file, 1],
-                                [id, "code", `${err.code}`, 1],
-                                [id, "message", `${err.message}`, 1]
+                                [id, "tag", "file/error"],
+                                [id, "file", file],
+                                [id, "code", `${err.code}`],
+                                [id, "message", `${err.message}`]
                             );
                             me.inputEAVs(changes);
                         }
@@ -64,12 +64,12 @@ bind
                             console.log(`Write file success: ${contents}`)
                         } else {
                             let id = `${file}|error`
-                            let changes:RawEAVC[] = [];
+                            let changes:RawEAV[] = [];
                             changes.push(
-                                [id, "tag", "file/error", 1],
-                                [id, "file", file, 1],
-                                [id, "code", `${err.code}`, 1],
-                                [id, "message", `${err.message}`, 1]
+                                [id, "tag", "file/error"],
+                                [id, "file", file],
+                                [id, "code", `${err.code}`],
+                                [id, "message", `${err.message}`]
                             );
                             me.inputEAVs(changes);
                         }
