@@ -1,4 +1,5 @@
 import {makeFunction, makeMultiFunction, RawValue, AggregateNode} from "./runtime";
+import * as dateformat from "dateformat";
 
 //--------------------------------------------------------------------
 // Comparisons
@@ -341,6 +342,19 @@ makeFunction({
     if(value === "true") return ["false"];
     if(value === "false") return ["true"];
     return [];
+  }
+})
+
+//--------------------------------------------------------------------
+// Date
+//--------------------------------------------------------------------
+
+makeFunction({
+  name: "date/format",
+  args: {timestamp: "number", format: "string"},
+  returns: {result: "string"},
+  apply: (timestamp: number, format: string) => {
+    return [dateformat(timestamp, format)];
   }
 })
 
