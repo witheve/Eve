@@ -40,7 +40,7 @@ export interface Operation {type: OperationType, args:any, paths:RawValue[]};
 // {fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, lineCap: "butt", lineJoin: "miter"}
 export interface PathStyle {[key:string]: RawValue|undefined, fillStyle?:string, strokeStyle?:string, lineWidth?:number, lineCap?:string, lineJoin?: string };
 
-class CanvasWatcher extends Watcher {
+export class CanvasWatcher extends Watcher {
   html:HTMLWatcher;
   canvases:RawMap<RawValue[]|undefined> = {};
   paths:RawMap<RawValue[]|undefined> = {};

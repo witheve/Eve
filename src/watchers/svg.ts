@@ -2,10 +2,10 @@ import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {HTMLWatcher} from "./html";
 
-interface Instance extends SVGElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
+export interface Instance extends SVGElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
 
 
-class SVGWatcher extends DOMWatcher<Instance> {
+export class SVGWatcher extends DOMWatcher<Instance> {
   tagPrefix = "svg";
   html:HTMLWatcher;
 

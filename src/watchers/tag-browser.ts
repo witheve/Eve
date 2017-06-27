@@ -1,5 +1,4 @@
 import {Watcher, Program, RawMap, RawValue, RawEAVC} from "./watcher";
-import {v4 as uuid} from "uuid";
 
 import {UIWatcher} from "../watchers/ui";
 
