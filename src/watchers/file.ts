@@ -47,10 +47,11 @@ file.error += error
     }
 
     if(fs.writeFile) {
-      me.watch("Write a file.", ({find, record}) => {
+      me.watch("Write a file.", ({find, record, choose}) => {
         let file = find("file/write");
+        let encoding = choose(() => file.encoding, () => "utf-8");
         return [
-          record({file, path: file.path, encoding: file.encoding, contents: file.contents})
+          record({file, path: file.path, encoding, contents: file.contents})
         ]
       })
       .asObjects<{file:ID, path:string, contents: string, encoding:string}>(({adds, removes}) => {
