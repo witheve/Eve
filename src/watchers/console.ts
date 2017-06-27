@@ -15,7 +15,7 @@ class ConsoleWatcher extends Watcher {
             })
             .asDiffs(({adds}) => {
                 for(let [log, _, text] of adds) {
-                console.log(text);
+                    console.log(text);
                 }
             })
             .watch("Print to console error.", ({find, record}) => {
@@ -26,7 +26,7 @@ class ConsoleWatcher extends Watcher {
             })
             .asDiffs(({adds}) => {
                 for(let [log, _, text] of adds) {
-                console.error(text);
+                    console.error(text);
                 }
             })
             .watch("Print to console warn.", ({find, record}) => {
@@ -37,7 +37,7 @@ class ConsoleWatcher extends Watcher {
             })
             .asDiffs(({adds}) => {
                 for(let [log, _, text] of adds) {
-                console.warn(text);
+                    console.warn(text);
                 }
             })
         }
