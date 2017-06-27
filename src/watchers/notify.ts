@@ -1,7 +1,7 @@
 import {Program, Watcher, RawValue, RawMap, RawEAVC} from "./watcher";
 import {HTMLWatcher} from "./html";
 
-class Notice {
+export class Notice {
   element:HTMLElement = document.createElement("notice");
   name:string;
   time:number;
@@ -20,16 +20,26 @@ class Notice {
 
 // @FIXME: do tihs with two program isolation instead of manual rendering?
 
-class NotifyWatcher extends Watcher {
+export class NotifyWatcher extends Watcher {
   html:HTMLWatcher;
   notices:RawMap<Notice|undefined> = {};
   root:HTMLElement;
+  scroller:HTMLElement;
+  wrapper:HTMLElement;
 
   setup() {
+    this.html = this.program.attach("html") as HTMLWatcher;
+
+    this.wrapper = document.createElement("div");
+    this.wrapper.className = "notify-wrapper";
+    document.body.appendChild(this.wrapper);
+    this.scroller = document.createElement("div");
+    this.scroller.className = "notify-scroller";
+    this.wrapper.appendChild(this.scroller);
+
     this.root = document.createElement("column");
     this.root.className = "notify-root ui-column";
-    document.body.appendChild(this.root);
-    this.html = this.program.attach("html") as HTMLWatcher;
+    this.scroller.appendChild(this.root);
     this.html.addExternalRoot("notify/root", this.root);
 
     this.program
@@ -94,7 +104,6 @@ class NotifyWatcher extends Watcher {
         let eavs:RawEAVC[] = [];
         eavs.push(["||notify/retract-timestamp", "tag", "notify/retract-timestamp", 1]);
         for(let [notice, _, timestamp] of removes) {
-          console.log("BAI", notice);
           eavs.push([notice, "timestamp", timestamp, -1]);
           //eavs.push(["||notify/retract-timestamp", "notice", notice, 1]);
         }
