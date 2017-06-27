@@ -203,6 +203,17 @@ export function isRawEAVArray(x:any): x is RawEAV[] {
   return false;
 }
 
+export function isRawEAVArraySet(x:any): x is RawEAV[][] {
+  return x && x.constructor === Array && isRawEAVArray(x[0]);
+}
+
+export function isRecord(x:any): x is Attrs {
+  return x && typeof x === "object" && x.constructor !== Array;
+}
+
+export function isRecordSet(x:any): x is Attrs[] {
+  return x && x.constructor === Array && isRecord(x[0]);
+}
 
 export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
 export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
@@ -222,12 +233,24 @@ export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
       eavs.push([id, attr, childId]);
       for(let childEAV of childEAVs) eavs.push(childEAV);
 
-    } else {
+    } else if(isRawEAVArraySet(value)) {
       // We have a set of nested sub-objects.
       for(let childEAVs of value) {
         let [childId] = childEAVs[0];
         eavs.push([id, attr, childId]);
         for(let childEAV of childEAVs) eavs.push(childEAV);
+      }
+    } else if(isRecord(value)) {
+      let ix = eavs.length;
+      appendAsEAVs(eavs, value);
+      let [childId] = eavs[ix];
+      eavs.push([id, attr, childId]);
+    } else if(isRecordSet(value)) {
+      for(let record of value) {
+        let ix = eavs.length;
+        appendAsEAVs(eavs, record);
+        let [childId] = eavs[ix];
+        eavs.push([id, attr, childId]);
       }
     }
   }
