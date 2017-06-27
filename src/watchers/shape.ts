@@ -1,6 +1,6 @@
 import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
 
-class ShapeWatcher extends Watcher {
+export class ShapeWatcher extends Watcher {
   setup() {
     this.program.attach("html");
     this.program.attach("canvas");
