@@ -2,7 +2,7 @@ import * as fs from "fs";
 import {Watcher} from "./watcher";
 import {ID} from "../runtime/runtime";
 
-class ConsoleWatcher extends Watcher {
+export class ConsoleWatcher extends Watcher {
 
   setup() {
     if(console) {

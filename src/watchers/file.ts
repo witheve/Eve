@@ -2,7 +2,7 @@ import * as fs from "fs";
 import {Watcher, RawEAV} from "./watcher";
 import {ID} from "../runtime/runtime";
 
-class FileWatcher extends Watcher {
+export class FileWatcher extends Watcher {
 
 setup() {
   let {program:me} = this;

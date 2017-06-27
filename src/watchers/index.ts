@@ -2,6 +2,8 @@ export {CanvasWatcher} from "./canvas";
 export {CompilerWatcher} from "./compiler";
 export {HTMLWatcher} from "./html";
 export {NotifyWatcher} from "./notify";
+export {FileWatcher} from "./file";
+export {ConsoleWatcher} from "./console";
 export {ShapeWatcher} from "./shape";
 export {SVGWatcher} from "./svg";
 export {SystemWatcher} from "./system";
