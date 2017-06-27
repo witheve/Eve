@@ -17,10 +17,11 @@ bind
 ~~~     
         `)
         if(fs.readFile) {
-            me.watch("read a file", ({find, record}) => {
+            me.watch("read a file", ({find, record, choose}) => {
                 let file = find("file/read");
+                let encoding = choose(() => file.encoding, () => "utf-8");
                 return [
-                    record({file, path: file.path, encoding: file.encoding})
+                    record({file, path: file.path, encoding})
                 ]
             })
 
