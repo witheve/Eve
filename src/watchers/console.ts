@@ -9,7 +9,7 @@ export class ConsoleWatcher extends Watcher {
       this.program
       .watch("Print to console log.", ({find, record}) => {
         let log = find("console/log");
-          return [record({log, text: log.text})]
+        return [log.add("text", log.text)]
       })
       .asDiffs(({adds}) => {
         for(let [log, _, text] of adds) {
@@ -18,7 +18,7 @@ export class ConsoleWatcher extends Watcher {
       })
       .watch("Print to console error.", ({find, record}) => {
         let log = find("console/error");
-        return [record({log, text: log.text})]
+        return [log.add("text", log.text)]
       })
       .asDiffs(({adds}) => {
         for(let [log, _, text] of adds) {
@@ -27,7 +27,7 @@ export class ConsoleWatcher extends Watcher {
       })
       .watch("Print to console warn.", ({find, record}) => {
         let log = find("console/warn");
-        return [record({log, text: log.text})]
+        return [log.add("text", log.text)]
       })
       .asDiffs(({adds}) => {
         for(let [log, _, text] of adds) {
