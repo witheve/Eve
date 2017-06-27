@@ -2,52 +2,46 @@ import * as fs from "fs";
 import {Watcher} from "./watcher";
 import {ID} from "../runtime/runtime";
 
-class consoleWatcher extends Watcher {
+class ConsoleWatcher extends Watcher {
 
     setup() {
         if(console) {
-            let {program:me} = this;
-
-            me.watch("print to console log", ({find, record}) => {
+            this.program
+            .watch("Print to console log.", ({find, record}) => {
                 let log = find("console/log");
                 return [
                     record({log, text: log.text})
                 ]
             })
-            me.asObjects<{log:ID, text:string}>(({adds, removes}) => {
-                Object.keys(adds).forEach((id) => {
-                    let {log, text} = adds[id];
-                    console.log(text);
-                })
+            .asDiffs(({adds}) => {
+                for(let [log, _, text] of adds) {
+                console.log(text);
+                }
             })
-
-            me.watch("print to console error", ({find, record}) => {
+            .watch("Print to console error.", ({find, record}) => {
                 let log = find("console/error");
                 return [
                     record({log, text: log.text})
                 ]
             })
-            me.asObjects<{log:ID, text:string}>(({adds, removes}) => {
-                Object.keys(adds).forEach((id) => {
-                    let {log, text} = adds[id];
-                    console.error(text);
-                })
+            .asDiffs(({adds}) => {
+                for(let [log, _, text] of adds) {
+                console.error(text);
+                }
             })
-
-            me.watch("print to console warn", ({find, record}) => {
+            .watch("Print to console warn.", ({find, record}) => {
                 let log = find("console/warn");
                 return [
                     record({log, text: log.text})
                 ]
             })
-            me.asObjects<{log:ID, text:string}>(({adds, removes}) => {
-                Object.keys(adds).forEach((id) => {
-                    let {log, text} = adds[id];
-                    console.warn(text);
-                })
+            .asDiffs(({adds}) => {
+                for(let [log, _, text] of adds) {
+                console.warn(text);
+                }
             })
         }
     }
 }
 
-Watcher.register("console", consoleWatcher);
+Watcher.register("console", ConsoleWatcher);
