@@ -24,8 +24,7 @@ bind
                     record({file, path: file.path, encoding})
                 ]
             })
-
-            me.asObjects<{file:ID, path:string, encoding:string}>(({adds, removes}) => {
+            .asObjects<{file:ID, path:string, encoding:string}>(({adds, removes}) => {
                 Object.keys(adds).forEach((id) => {
                     let {file, path, encoding} = adds[id];
                     fs.readFile(path, {encoding}, function(err, contents){
@@ -53,12 +52,12 @@ bind
                     record({file, path: file.path, encoding: file.encoding, contents: file.contents})
                 ]
             })
-            me.asObjects<{file:ID, path:string, contents: string, encoding:string}>(({adds, removes}) => {
+            .asObjects<{file:ID, path:string, contents: string, encoding:string}>(({adds, removes}) => {
                 Object.keys(adds).forEach((id) => {
                     let {file, path, contents, encoding} = adds[id];
                     fs.writeFile(path, contents, {encoding: encoding}, function(err){
                         if (!err) {
-                            console.log(`Write file success: ${contents}`)
+                            me.inputEAVs([[file, "tag", "file/complete"]])
                         } else {
                             let id = `${file}|error`
                             let changes:RawEAV[] = [];
