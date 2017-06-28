@@ -258,8 +258,9 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
       let currentTarget:Element|null = target;
 
+      let eavs:(RawEAV|RawEAVC)[] = [];
+
       while (currentTarget && this.isInstance(currentTarget)) {
-        let eavs:(RawEAV|RawEAVC)[] = [];
         let elemId = currentTarget.__element!;
 
         if (currentTarget.listeners && currentTarget.listeners["mouse-position"]) {
@@ -272,27 +273,19 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
             [eventId, "window-x", event.clientX],
             [eventId, "window-y", event.clientY],
 
-            [eventId, "target", elemId]
+            [eventId, "element", elemId]
           );
 
-          let current:Element|null = currentTarget;
-          let elemIds = [];
-          while (current && this.isInstance(current)) {
-            if (current.listeners && current.listeners["mouse-position"]) {
-              eavs.push([eventId, "element", current.__element!]);
-            }
-
-            current = current.parentElement;
+          if (currentTarget === target) {
+            eavs.push([eventId, "target", elemId]);
           }
-
-          if (eavs.length)
-            this._sendEvent(eavs);
-
-          break;
         }
 
         currentTarget = currentTarget.parentElement;
       }
+
+      if (eavs.length)
+        this._sendEvent(eavs);
     };
   }
 
