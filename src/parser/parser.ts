@@ -1467,7 +1467,7 @@ export function parseDoc(doc:string, docId = `doc|${docIx++}`) {
 
   let eavs:any[] = [];
   for(let block of parsedBlocks) {
-    console.log(block);
+    //if(typeof process === "undefined") console.log(block);
     toFacts(eavs, block);
   }
 
