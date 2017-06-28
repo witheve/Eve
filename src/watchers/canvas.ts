@@ -388,8 +388,6 @@ export class CanvasWatcher extends Watcher {
         }
         setImmediate(this.changed);
       });
-
-    console.log(this);
   }
 }
 

@@ -286,12 +286,12 @@ export class CompilerWatcher extends Watcher {
         this.programToInjectInto.asDiffs(func);
       }
     }
-    if(console.groupCollapsed) {
-      console.groupCollapsed("Compiled: " + block.name);
-      console.log(block, flow);
-      console.log(printBlock(block));
-      console.groupEnd();
-    }
+    // if(typeof process === "undefined" && console.groupCollapsed) {
+    //   console.groupCollapsed("Compiled: " + block.name);
+    //   console.log(block, flow);
+    //   console.log(printBlock(block));
+    //   console.groupEnd();
+    // }
     return block;
   }
 
