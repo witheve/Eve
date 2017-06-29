@@ -411,8 +411,9 @@ export function renderRecords() {
 
       } else if(attribute === "value") {
         let input = elem as (RecordElement & HTMLInputElement);
-        if(!value) {
+        if(!value || !value.length || !value[0]) {
           input.value = "";
+          input.setAttribute("value", "");
         } else if(value.length > 1) {
           console.error("Unable to set 'value' multiple times on entity", entity, JSON.stringify(value));
         } else {
