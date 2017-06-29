@@ -589,7 +589,7 @@ window.addEventListener("click", function(event) {
   }
 });
 
-window.addEventListener("dblclick", handleBasicEventWithTarget("dblclick"));
+window.addEventListener("dblclick", handleBasicEventWithTarget("double-click"));
 window.addEventListener("mousedown", handleBasicEventWithTarget("mousedown"));
 window.addEventListener("mouseup", handleBasicEventWithTarget("mouseup"));
 
