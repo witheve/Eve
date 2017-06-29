@@ -1,0 +1,55 @@
+# Todo List Application
+## Records
+### Todos
+Filling the todo list with some objects:
+```
+commit
+  [#todo status: "unresolved", text: "buy potatos"]
+  [#todo status: "resolved", text: "buy wine"]
+  [#todo status: "unresolved", text: "buy water"]
+```
+
+## Pages
+### Unresolved List
+Follows a list of unresolved todos:
+```eve
+search
+  [#todo text status: "unresolved"]
+
+bind @browser
+  [#div text: "Unresolved Todos"]
+  [#li text: "{{text}}"]
+```
+
+### Resolved List
+Follows a list of resolved todos:
+```
+search
+  [#todo status text status: "resolved"]
+
+bind @browser
+  [#div text: "Resolved Todos"]
+  [#li text: "{{text}} - {{status}}"]
+```
+
+### Todo List
+Follows the todo list:
+```
+search
+  todo = [#todo text status]
+
+bind @browser
+  [#div text: "Todo List"]
+  [#li text: "{{todo.text}} - {{todo.status}}" element: [#button text: "wat"]]
+```
+
+## Events
+### Todo Event Click
+Mark a todo element as resolved:
+```
+search @event @browser @session
+  [#click #direct-target element: [#button text]]
+
+commit
+  
+```
