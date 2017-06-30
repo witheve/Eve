@@ -426,8 +426,8 @@ class Navigator {
         this.open ? {c: "ion-ios-cloud-upload-outline btn", title: "Save to Gist", click: () => this.ide.saveToGist()} : undefined,
         this.open ? {c: "ion-ios-cloud-download-outline btn", title: "Load from Gist", click: this.toggleLoadDialog} : undefined,
 
-        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back btn`, title: this.open ? "Expand" : "Collapse", click: this.togglePane},
-      ]},
+        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back btn`, title: this.open ? "Collapse" : "Expand", click: this.togglePan  e},
+    Expand]},
       this.ide.inspecting ? this.inspectorControls() : {c: "inspector-controls"},
     ]};
   }
