@@ -2,7 +2,7 @@ import {Watcher, RawMap, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher
 import {HTMLWatcher} from "./html";
 import {v4 as uuid} from "uuid";
 
-function asValue(value:RawValue) {
+function asValue(value:RawValue|undefined) {
   if(typeof value == "string") {
     if(value == "true") return true;
     if(value == "false") return false;
@@ -26,6 +26,13 @@ let operationFields:{[type:string]: string[]} = {
   ellipse: ["x", "y", "radiusX", "radiusY", "rotation", "startAngle", "endAngle", "anticlockwise"],
   rect: ["x", "y", "width", "height"],
   closePath: []
+};
+
+let defaultOperationFieldValue:{[field:string]: any} = {
+  rotation: 0,
+  startAngle: 0,
+  endAngle: 2 * Math.PI,
+  anticlockwise: false
 };
 
 function isOperationType(val:RawValue): val is OperationType {
@@ -127,9 +134,10 @@ export class CanvasWatcher extends Watcher {
     let fields:string[] = operationFields[type as string];
 
     let input = [];
+    let restOptional = false;
     for(let field of fields) {
-      if(args[field] == undefined) return;
-      let value = asValue(args[field]);
+      let value = asValue(args[field]) || defaultOperationFieldValue[field];
+      if(value === undefined) return;
       input.push(value);
     }
     return input;
@@ -209,6 +217,15 @@ export class CanvasWatcher extends Watcher {
         let canvas = find("canvas/root");
         return [canvas.add({tag: "html/element", tagname: "canvas"})]
       })
+      .bind("If an ellipse operation specifies a radius, copy it into radiusX and radiusY.", ({find}) => {
+        let path = find("canvas/path");
+        let operation = path.children;
+        operation.type == "ellipse";
+        let {radius} = operation;
+        return [
+          operation.add({radiusX: radius, radiusY: radius})
+        ];
+      })
 
       // .watch("Export canvas roots.", ({find}) => {
       //   let canvas = find("canvas/root");
@@ -259,12 +276,12 @@ export class CanvasWatcher extends Watcher {
       })
 
 
-      .watch("Export paths of canvas.", ({find, gather, record}) => {
+      .watch("Export paths of canvas.", ({find, choose, gather, record}) => {
         let canvas = find("canvas/root");
         let child = canvas.children;
         // @FIXME: non-deterministic sort bug :(
         //let ix = gather(child.sort).per(canvas).sort();
-        let ix = child.sort;
+        let ix = choose(() => child.sort, () => child["eve-auto-index"], () => 1);
 
         return [record({canvas, child, ix})]
       })
@@ -303,12 +320,12 @@ export class CanvasWatcher extends Watcher {
         setImmediate(this.changed);
       })
 
-      .watch("Export operations of paths.", ({find, gather, record}) => {
+      .watch("Export operations of paths.", ({find, choose, gather, record}) => {
         let path = find("canvas/path");
         let child = path.children;
         // @FIXME: non-deterministic sort bug :(
         //let ix = gather(child.sort).per(path).sort();
-        let ix = child.sort;
+        let ix = choose(() => child.sort, () => child["eve-auto-index"], () => 1);
         return [record({path, child, ix})]
       })
       .asObjects<{path:RawValue, child:RawValue, ix:number}>((diffs) => {
@@ -370,6 +387,7 @@ export class CanvasWatcher extends Watcher {
         attribute != "children";
         attribute != "tag";
         attribute != "sort";
+        attribute != "eve-auto-index";
         return [path.add(attribute, value)];
       })
       .asDiffs((diffs) => {
