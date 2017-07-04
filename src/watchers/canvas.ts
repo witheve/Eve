@@ -259,12 +259,12 @@ export class CanvasWatcher extends Watcher {
       })
 
 
-      .watch("Export paths of canvas.", ({find, gather, record}) => {
+      .watch("Export paths of canvas.", ({find, choose, gather, record}) => {
         let canvas = find("canvas/root");
         let child = canvas.children;
         // @FIXME: non-deterministic sort bug :(
         //let ix = gather(child.sort).per(canvas).sort();
-        let ix = child.sort;
+        let ix = choose(() => child.sort, () => child["eve-auto-index"], () => 1);
 
         return [record({canvas, child, ix})]
       })
@@ -303,12 +303,12 @@ export class CanvasWatcher extends Watcher {
         setImmediate(this.changed);
       })
 
-      .watch("Export operations of paths.", ({find, gather, record}) => {
+      .watch("Export operations of paths.", ({find, choose, gather, record}) => {
         let path = find("canvas/path");
         let child = path.children;
         // @FIXME: non-deterministic sort bug :(
         //let ix = gather(child.sort).per(path).sort();
-        let ix = child.sort;
+        let ix = choose(() => child.sort, () => child["eve-auto-index"], () => 1);
         return [record({path, child, ix})]
       })
       .asObjects<{path:RawValue, child:RawValue, ix:number}>((diffs) => {
@@ -370,6 +370,7 @@ export class CanvasWatcher extends Watcher {
         attribute != "children";
         attribute != "tag";
         attribute != "sort";
+        attribute != "eve-auto-index";
         return [path.add(attribute, value)];
       })
       .asDiffs((diffs) => {
