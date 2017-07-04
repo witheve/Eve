@@ -2,7 +2,7 @@ import {Watcher, RawMap, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher
 import {HTMLWatcher} from "./html";
 import {v4 as uuid} from "uuid";
 
-function asValue(value:RawValue) {
+function asValue(value:RawValue|undefined) {
   if(typeof value == "string") {
     if(value == "true") return true;
     if(value == "false") return false;
@@ -26,6 +26,13 @@ let operationFields:{[type:string]: string[]} = {
   ellipse: ["x", "y", "radiusX", "radiusY", "rotation", "startAngle", "endAngle", "anticlockwise"],
   rect: ["x", "y", "width", "height"],
   closePath: []
+};
+
+let defaultOperationFieldValue:{[field:string]: any} = {
+  rotation: 0,
+  startAngle: 0,
+  endAngle: 2 * Math.PI,
+  anticlockwise: false
 };
 
 function isOperationType(val:RawValue): val is OperationType {
@@ -127,9 +134,10 @@ export class CanvasWatcher extends Watcher {
     let fields:string[] = operationFields[type as string];
 
     let input = [];
+    let restOptional = false;
     for(let field of fields) {
-      if(args[field] == undefined) return;
-      let value = asValue(args[field]);
+      let value = asValue(args[field]) || defaultOperationFieldValue[field];
+      if(value === undefined) return;
       input.push(value);
     }
     return input;
@@ -208,6 +216,15 @@ export class CanvasWatcher extends Watcher {
       .bind("Canvas roots are html elements.", ({find}) => {
         let canvas = find("canvas/root");
         return [canvas.add({tag: "html/element", tagname: "canvas"})]
+      })
+      .bind("If an ellipse operation specifies a radius, copy it into radiusX and radiusY.", ({find}) => {
+        let path = find("canvas/path");
+        let operation = path.children;
+        operation.type == "ellipse";
+        let {radius} = operation;
+        return [
+          operation.add({radiusX: radius, radiusY: radius})
+        ];
       })
 
       // .watch("Export canvas roots.", ({find}) => {
