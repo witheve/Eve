@@ -277,8 +277,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           let instance = this.getInstance(e);
           if(!instance) continue;
 
-          if(a === "tagname") continue;
+          else if(a === "tagname") continue;
           else if(a === "children") continue;
+          else if(a === "tag") continue;
           else if(a === "sort") continue; // I guess..?
           else if(a === "eve-auto-index") continue; // I guess..?
           else if(a === "text") instance.textContent = null;
@@ -292,6 +293,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
+          else if(a === "tag") continue;
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
           else if(a === "eve-auto-index") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
