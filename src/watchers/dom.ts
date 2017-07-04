@@ -22,6 +22,8 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   abstract addAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
   abstract removeAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
 
+  protected _dummy = document.createElement("div");
+
   protected _sendEvent(eavs:(RawEAV|RawEAVC)[]) {
     this.program.inputEAVs(eavs);
   }
@@ -118,6 +120,24 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     let instance = this.getInstance(instanceId);
     if(!instance) throw new Error(`Orphaned instance '${instanceId}'`);
     let style = this.getStyle(styleId);
+
+    // Instead of a style record, we may be dealing with a style string.
+    if(style.__size === 0) {
+      this._dummy.setAttribute("style", styleId as string);
+      let props = this._dummy.style;
+      // Yep, we're inline CSS.
+      if(props.length) {
+        this.styles[styleId] = style;
+
+        for(let propIx = 0; propIx < props.length; propIx++) {
+          let prop = props[propIx];
+          let value = props.getPropertyValue(prop);
+          style[prop] = value;
+          style.__size += 1;
+        }
+      }
+    }
+
     for(let prop in style) {
       if(prop === "__size") continue;
       instance.style[prop as any] = style[prop] as string;
@@ -277,8 +297,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           let instance = this.getInstance(e);
           if(!instance) continue;
 
-          if(a === "tagname") continue;
+          else if(a === "tagname") continue;
           else if(a === "children") continue;
+          else if(a === "tag") continue;
           else if(a === "sort") continue; // I guess..?
           else if(a === "eve-auto-index") continue; // I guess..?
           else if(a === "text") instance.textContent = null;
@@ -292,6 +313,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
+          else if(a === "tag") continue;
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
           else if(a === "eve-auto-index") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
