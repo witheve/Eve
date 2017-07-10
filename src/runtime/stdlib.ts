@@ -199,6 +199,15 @@ makeFunction({
 });
 
 makeFunction({
+  name: "math/log",
+  args: {value: "number"},
+  returns: {result: "number"},
+  apply: (value:number) => {
+    return [Math.log(value)];
+  }
+});
+
+makeFunction({
   name: "math/to-fixed",
   args: {value: "number", to: "number"},
   returns: {result: "string"},
