@@ -199,7 +199,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "math/log",
+  name: "math/ln",
   args: {value: "number"},
   returns: {result: "number"},
   apply: (value:number) => {
