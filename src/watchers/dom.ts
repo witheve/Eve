@@ -22,7 +22,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   abstract addAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
   abstract removeAttribute(instance:Instance, attribute:RawValue, value:RawValue|boolean):void;
 
-  protected _dummy = document.createElement("div");
+  protected _dummy:HTMLElement;
 
   protected _sendEvent(eavs:(RawEAV|RawEAVC)[]) {
     this.program.inputEAVs(eavs);
@@ -167,6 +167,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
   setup() {
     if(typeof document === "undefined") return;
+    this._dummy = document.createElement("div");
 
     this.program
       .constants({tagPrefix: this.tagPrefix})

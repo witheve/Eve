@@ -215,7 +215,7 @@ export function isRecordSet(x:any): x is Attrs[] {
   return x && x.constructor === Array && isRecord(x[0]);
 }
 
-export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
+export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]|Attrs|Attrs[]> {}
 export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
   for(let attr in record) {
     let value = record[attr];
