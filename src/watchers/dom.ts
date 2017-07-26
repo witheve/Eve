@@ -87,6 +87,24 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     }
   }
 
+  insertSortedChild(parent:Element|null, child:Instance, sort?:RawValue) {
+    child.__sort = sort;
+    if(sort !== undefined) child.setAttribute("sort", ""+sort);
+    else child.removeAttribute("sort");
+    this.insertChild(parent, child);
+  }
+
+  insertAutoSortedChild(parent:Element|null, child:Instance, autoSort?:RawValue) {
+    if(autoSort !== undefined) {
+      child.setAttribute("auto-sort", ""+autoSort);
+      if(!child.hasAttribute("sort")) {
+        child.__sort = autoSort;
+        this.insertChild(parent, child);
+      }
+    }
+    else child.removeAttribute("auto-sort");
+  }
+
   // @NOTE: This requires styles to have disjoint attribute sets or it'll do bad things.
   // @NOTE: Styles may only have a single value for each attribute due to our inability
   //        to express an ordering of non-record values.
@@ -315,8 +333,8 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
           else if(a === "tag") continue;
-          else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
-          else if(a === "eve-auto-index") this.insertChild(instance.parentElement, instance, v);
+          else if(a === "sort") this.insertSortedChild(instance.parentElement, instance, v);
+          else if(a === "eve-auto-index") this.insertAutoSortedChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
           else if(a === "style") this.addStyleInstance(v, e);
           else this.addAttribute(instance, a, asJS(v)!);
