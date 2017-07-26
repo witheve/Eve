@@ -23,8 +23,8 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     if(tagname === "svg") elem = document.createElementNS("http://www.w3.org/2000/svg", tagname as string) as any;
     else elem = document.createElement(tagname as string);
 
-    elem.setAttribute("instance", ""+maybeIntern(id));
-    elem.setAttribute("element", ""+maybeIntern(element));
+    //elem.setAttribute("instance", ""+maybeIntern(id));
+    //elem.setAttribute("element", ""+maybeIntern(element));
     elem.__element = element;
     elem.__styles = [];
     return elem;
