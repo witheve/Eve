@@ -141,7 +141,8 @@ export function _isId(value?:RawValue):boolean {
 
 export function maybeIntern(value?:RawValue):ID|RawValue|undefined {
   if(value === undefined) return value;
-  return _isId(value) ? GlobalInterner.get(value) : value;
+  let interned = _isId(value) ? GlobalInterner.get(value) : undefined
+  return interned !== undefined ? interned : value;
 }
 
 export function asJS(value?:RawValue):number|string|boolean|undefined {
