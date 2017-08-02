@@ -7,6 +7,8 @@ export interface Instance extends HTMLElement {__element?: RawValue, __styles?: 
 export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
 
+  _checkedRadios:{[name:string]: RawValue, [name:number]: RawValue} = {};
+
   addExternalRoot(tag:string, element:HTMLElement) {
     let elemId = createId();
     let eavs:RawEAV[] = [
@@ -176,6 +178,41 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     }
   }
 
+  _changeEventHandler(tagname:string) {
+    return (event:Event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      if(!(target instanceof HTMLInputElement)) return;
+      if(target.type == "checkbox" || target.type == "radio") {
+        let elementId = target.__element;
+        if(elementId) {
+          let eventId = createId();
+          let eavs:RawEAV[] = [
+            [eventId, "tag", "html/event"],
+            [eventId, "tag", `html/event/${tagname}`],
+            [eventId, "element", elementId],
+            [eventId, "checked", ""+target.checked]
+          ];
+          let name = target.name;
+          if(target.type == "radio" && name !== undefined) {
+            let prev = this._checkedRadios[name];
+            if(prev && prev !== target.__element) {
+              // @NOTE: This is two events in one TX, a bit dangerous.
+              let event2Id = createId();
+              eavs.push(
+                [event2Id, "tag", "html/event"],
+                [event2Id, "tag", `html/event/${tagname}`],
+                [event2Id, "element", prev],
+                [event2Id, "checked", "false"]
+              );
+            }
+            this._checkedRadios[name] = elementId;
+          }
+          if(eavs.length) this._sendEvent(eavs);
+        }
+      }
+    }
+  }
+
   _keyMap:{[key:number]: string|undefined} = { // Overrides to provide sane names for common control codes.
     9: "tab",
     13: "enter",
@@ -303,6 +340,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     window.addEventListener("contextmenu", this._captureContextMenuHandler());
 
     window.addEventListener("input", this._inputEventHandler("change"));
+    window.addEventListener("change", this._changeEventHandler("change"));
     window.addEventListener("keydown", this._keyEventHandler("key-down"));
     window.addEventListener("keyup", this._keyEventHandler("key-up"));
     window.addEventListener("focus", this._focusEventHandler("focus"), true);
@@ -343,6 +381,10 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       .commit("Apply input value changes.", ({find}) => {
         let {element, value} = find("html/event/change");
         return [element.remove("value").add("value", value)];
+      })
+      .commit("Apply input checked changes.", ({find}) => {
+        let {element, checked} = find("html/event/change");
+        return [element.remove("checked").add("checked", checked)];
       })
 
       .commit("When an element is entered, mark it hovered.", ({find, record}) => {
