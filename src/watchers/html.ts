@@ -288,6 +288,44 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     };
   }
 
+  _mouseMoveEventHandler(tagname:string) {
+    return (event:MouseEvent) => {
+      let {target} = event;
+      if (!this.isInstance(target)) return;
+
+      let currentTarget:Element|null = target;
+
+      let eavs:(RawEAV|RawEAVC)[] = [];
+
+      while (currentTarget && this.isInstance(currentTarget)) {
+        let elemId = currentTarget.__element!;
+
+        if (currentTarget.listeners && currentTarget.listeners["mouse-position"]) {
+          let eventId = createId();
+          eavs.push(
+            [eventId, "tag", "html/event"],
+            [eventId, "tag", `html/event/${tagname}`],
+            [eventId, "page-x", event.pageX],
+            [eventId, "page-y", event.pageY],
+            [eventId, "window-x", event.clientX],
+            [eventId, "window-y", event.clientY],
+
+            [eventId, "element", elemId]
+          );
+
+          if (currentTarget === target) {
+            eavs.push([eventId, "target", elemId]);
+          }
+        }
+
+        currentTarget = currentTarget.parentElement;
+      }
+
+      if (eavs.length)
+        this._sendEvent(eavs);
+    };
+  }
+
   _hashChangeHandler(tagname:string) {
     return (event:HashChangeEvent) => {
       this._updateURL(tagname);
@@ -337,6 +375,7 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
     window.addEventListener("dblclick", this._mouseEventHandler("double-click"));
     window.addEventListener("mousedown", this._mouseEventHandler("mouse-down"));
     window.addEventListener("mouseup", this._mouseEventHandler("mouse-up"));
+
     window.addEventListener("contextmenu", this._captureContextMenuHandler());
 
     window.addEventListener("input", this._inputEventHandler("change"));
@@ -348,6 +387,8 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
     document.body.addEventListener("mouseenter", this._hoverEventHandler("hover-in"), true);
     document.body.addEventListener("mouseleave", this._hoverEventHandler("hover-out"), true);
+
+    document.body.addEventListener("mousemove", this._mouseMoveEventHandler("mouse-move"));
 
     window.addEventListener("hashchange", this._hashChangeHandler("url-change"));
 
@@ -399,6 +440,13 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
         let elemId = find("html/listener/hover");
         let instanceId = find("html/instance", {element: elemId});
         return [record({listener: "hover", elemId, instanceId})]
+      })
+      .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs))
+
+      .watch("When an element listens for mouse-position, it subscribes to mousemove.", ({find, record}) => {
+        let elemId = find("html/listener/mouse-position");
+        let instanceId = find("html/instance", {element: elemId});
+        return [record({listener: "mouse-position", elemId, instanceId})]
       })
       .asObjects<{listener:string, elemId:ID, instanceId:RawValue}>((diffs) => this.exportListeners(diffs))
 
