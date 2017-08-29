@@ -58,3 +58,6 @@ experimental/build/*.js
 
 experimental/build/*.js
 experimental/build/*.js.map
+
+# macOS artifacts
+.DS_Store
