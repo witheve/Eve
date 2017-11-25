@@ -403,10 +403,13 @@ export class UIWatcher extends Watcher {
         return [autocomplete.add("match", completion)];
       })
 
-      .bind("Matches are sorted by length.", ({find, lib:{string}}) => {
+      .bind("Matches are sorted by length by default.", ({find, lib:{string}}) => {
         let autocomplete = find("ui/autocomplete");
         let {match} = autocomplete;
+        let sortby = autocomplete.sortby;
         let sort = string["codepoint-length"](match.text);
+        if (sortby === "alpha")
+          sort = match.text
         return [match.add("sort", sort)];
       })
 
