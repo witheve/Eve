@@ -261,6 +261,16 @@ makeMultiFunction({
 //--------------------------------------------------------------------
 
 makeFunction({
+  name: "string/split",
+  args: {text: "string", delimiter: "string"},
+  returns: {result: "string[]"},
+  apply: function(text:string, delimiter:string) {
+    let result = text.split(delimiter);
+    return [result];
+  }
+});
+
+makeFunction({
   name: "string/replace",
   args: {text: "string", replace: "string", with: "string"},
   returns: {result: "string"},
