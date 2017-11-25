@@ -271,6 +271,16 @@ makeFunction({
 });
 
 makeFunction({
+  name: "string/join",
+  args: {},
+  variadic: true,
+  returns: {result: "string"},
+  apply: (values:string[], delimiter:string) => {
+    return [values.join(delimiter)];
+  }
+});
+
+makeFunction({
   name: "string/get",
   args: {text: "string", at: "number"},
   returns: {result: "string"},
